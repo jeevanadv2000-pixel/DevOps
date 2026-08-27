@@ -5,7 +5,7 @@
 
 I’ve kept these notes **crisp and interview-oriented**, removing participant discussion and repetition. The notes are based on the instructor's content from the transcript. 
 
----
+-----
 
 ## 1. Why Do We Need DevOps? ⭐⭐⭐
 
