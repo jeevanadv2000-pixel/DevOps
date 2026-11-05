@@ -1,152 +1,194 @@
-Azure Functions, Containers, ACI & ACR Notes
-Session Overview
+Yes. The problem is that the previous version was optimized for viewing in chat, not for directly pasting into GitHub. Below is the GitHub-ready version with proper Markdown and Mermaid blocks.
+
+# Azure Functions, Containers, ACI & ACR
+
+## Session Overview
 
 This session covered:
 
-Azure Functions (Serverless Computing)
-Event-Driven Architecture
-Triggers and Bindings
-Function App
-Scale-to-Zero Concept
-Containers vs Virtual Machines
-Docker Basics
-Docker Images & Containers
-Azure Container Instances (ACI)
-Azure Container Registry (ACR)
-DIY Containers vs Managed Containers
+- Azure Functions (Serverless Computing)
+- Event-Driven Architecture
+- Triggers and Bindings
+- Function App
+- Scale-to-Zero Concept
+- Containers vs Virtual Machines
+- Docker Basics
+- Docker Images & Containers
+- Azure Container Instances (ACI)
+- Azure Container Registry (ACR)
+- DIY Containers vs Managed Containers
 
-Source: Azure(Morning) transcript_2026-11-05_09.29.19.txt
+---
 
-Compute Services in Azure
+# Compute Services in Azure
 
 Azure provides three major ways to run applications:
 
+```mermaid
 flowchart LR
 
 VM[Virtual Machine - IaaS]
 APP[Azure App Service - PaaS]
 FUNC[Azure Functions - Serverless]
+```
 
-Service	Infrastructure Visibility	Infrastructure ManagementVirtual Machine	Yes	Customer
-App Service	Yes	Azure
-Azure Functions	No	Azure
-Azure Functions
+| Service | Infrastructure Visibility | Infrastructure Management |
+|----------|----------|----------|
+| Virtual Machine | Yes | Customer |
+| App Service | Yes | Azure |
+| Azure Functions | No | Azure |
+
+---
+
+# Azure Functions
 
 Azure Functions is a:
 
-Serverless Compute Service
-
+> Serverless Compute Service
 
 It allows execution of code without managing servers.
 
-Key idea:
+### Key Idea
 
-Focus on code,
-not infrastructure.
+> Focus on code, not infrastructure.
 
-What Does Serverless Mean?
+---
+
+# What Does Serverless Mean?
 
 ❌ No servers exist
 
 ✅ Servers exist but are hidden from users
 
+```mermaid
 flowchart LR
 
 Developer --> FunctionCode
 FunctionCode --> Azure
 Azure --> HiddenServers
-
-
-Users only provide code.
+```
 
 Azure manages:
 
-Infrastructure
-Scaling
-Availability
-Runtime
-Event-Driven Architecture
+- Infrastructure
+- Scaling
+- Availability
+- Runtime
+
+---
+
+# Event-Driven Architecture
 
 Azure Functions are designed primarily for:
 
-Event Driven Architecture
-
+> Event Driven Architecture
 
 Application execution starts only when an event occurs.
 
+```mermaid
 flowchart LR
 
 Event --> Function --> Action
+```
 
-Example 1: File Upload
+---
+
+## Example 1: File Upload
 
 Scenario:
 
+```text
 Upload File
 ↓
 Trigger Function
 ↓
 Compress File
+```
 
+```mermaid
 flowchart LR
 
 StorageUpload --> AzureFunction
 AzureFunction --> CompressFile
+```
 
-Example 2: VM Stopped
+---
+
+## Example 2: VM Stopped
 
 Scenario:
 
+```text
 VM Stops
 ↓
 Azure Function Triggered
 ↓
 Restart VM
+```
 
+```mermaid
 flowchart LR
 
 VMStopped --> Function
 Function --> RestartVM
+```
 
-Triggers
+---
+
+# Triggers
 
 Triggers define:
 
-WHEN a function runs
-
+> WHEN a function runs
 
 Trigger = Input Event
 
+```mermaid
 flowchart LR
 
 Trigger --> Function
+```
 
-Common Trigger Types
-Trigger	ExampleHTTP	URL Request
-Timer	Daily 9 PM Run
-Storage Event	File Upload
-Queue Message	Message Arrives
-Bindings
+---
+
+## Common Trigger Types
+
+| Trigger | Example |
+|----------|----------|
+| HTTP | URL Request |
+| Timer | Daily 9 PM Run |
+| Storage Event | File Upload |
+| Queue Message | Message Arrives |
+
+---
+
+# Bindings
 
 Bindings define:
 
-WHERE function sends output
-
+> WHERE function sends output
 
 Binding = Output Destination
 
+```mermaid
 flowchart LR
 
 Function --> Binding
+```
 
-Trigger vs Binding
+---
+
+## Trigger vs Binding
+
+```mermaid
 flowchart LR
 
 Trigger --> Function --> Binding
-
+```
 
 Example:
 
+```text
 File Uploaded
 ↓
 Trigger
@@ -156,54 +198,59 @@ Compress File
 Store in Database
 ↓
 Binding
+```
 
-Azure Functions Pricing Advantage
-Scale to Zero
+---
 
-Most important interview point.
+# Azure Functions Pricing Advantage
+
+## Scale to Zero
 
 Virtual Machine:
 
+```text
 VM running = Billing continues
-
+```
 
 Even if:
 
-No users
-No requests
+- No users
+- No requests
 
 Billing remains active.
 
 Function App:
 
+```text
 No Trigger
 ↓
 No Execution
 ↓
 No Cost
+```
 
-Example
+---
+
+## Example
 
 Function:
 
+```text
 Trigger on File Upload
+```
 
+If no file is uploaded for a month:
 
-If no file uploaded entire month:
-
+```text
 Execution Count = 0
 Cost = 0
+```
 
-Function App Creation
+---
 
-Supported Languages:
+# Function App Architecture
 
-RuntimePython
-Java
-Go
-PowerShell
-Custom Runtime
-Function App Architecture
+```mermaid
 flowchart TD
 
 FunctionApp
@@ -214,32 +261,45 @@ Trigger
 
 FunctionCode
  --> Binding
+```
 
-Azure Functions Networking
+---
+
+## Supported Languages
+
+| Runtime |
+|----------|
+| Python |
+| Java |
+| Go |
+| PowerShell |
+| Custom Runtime |
+
+---
+
+# Azure Functions Networking
 
 Supports:
 
-Public Access
-Private Access
-VNet Integration
+- Public Access
+- Private Access
+- VNet Integration
+
+```mermaid
 flowchart LR
 
 FunctionApp --> VNet
 VNet --> Database
 VNet --> VM
+```
 
-Virtual Machines vs Containers
+---
 
-Next Topic Introduced:
+# Virtual Machines vs Containers
 
-Containers
+## Virtual Machine Architecture
 
-
-Before understanding Azure Container Services, first understand:
-
-Virtual Machine vs Container
-
-Virtual Machine Architecture
+```mermaid
 flowchart TD
 
 PhysicalServer
@@ -251,246 +311,276 @@ Hypervisor
  --> VM2
 Hypervisor
  --> VM3
-
+```
 
 Each VM contains:
 
-Full OS
-Runtime
-Applications
-Why Containers Were Introduced
-Problem 1: Heavy Virtual Machines
+- Full OS
+- Runtime
+- Applications
 
-To run a Python app:
+---
 
-Needed:
+## Why Containers Were Introduced
 
+### Problem 1: Heavy Virtual Machines
+
+Required:
+
+```text
 Application
-Python
-
+Python Runtime
+```
 
 But VM also contains:
 
+```text
 Chrome
 Zoom
-Extra Packages
-Unused Components
-
-
-VMs become large and resource-intensive.
-
-Problem 2: Environment Differences
-
-Different systems:
-
-OS	Package ManagerUbuntu	apt
-Linux	yum
-Windows	Different entirely
+Java
+Unused Packages
+```
 
 Result:
 
-Works on my machine
-Fails on yours
+> High resource consumption
 
-Containers
+---
+
+### Problem 2: Environment Differences
+
+| OS | Package Manager |
+|------|------|
+| Ubuntu | apt |
+| Linux | yum |
+| Windows | Different Commands |
+
+Result:
+
+```text
+Works on My Machine
+Fails on Yours
+```
+
+---
+
+# Containers
 
 Containers solve:
 
 ✅ Dependency issues
 
-✅ Environment inconsistencies
+✅ Environment inconsistency
 
 ✅ Heavy deployments
 
-CD Example
+---
 
-Trainer compared containers to CDs.
+## Container Terminology
 
-Movie stored in CD
-
-
-Any player can run it:
-
-Sony
-Samsung
-Toshiba
-
-Movie remains identical.
-
-Similarly:
-
-Application + Dependencies
-=
-Container Image
-
-Container Terminology
-Image
+### Image
 
 Packaged application.
 
 Contains:
 
-Application Code
-Runtime
-Libraries
-Dependencies
+- Application Code
+- Runtime
+- Libraries
+- Dependencies
+
+```mermaid
 flowchart TD
 
 Image
  --> Code
  --> Runtime
  --> Libraries
+ --> Dependencies
+```
 
-Container
+### Container
 
-Running instance of an image.
+Running instance of an Image.
 
+```text
 Image = Blueprint
-Container = Running Copy
+Container = Running Instance
+```
 
-Virtualization vs Containerization
-Virtualization
+---
 
-Hardware-Level
+## Virtualization vs Containerization
 
+### Virtualization
+
+```mermaid
 flowchart LR
 
 Server --> VM1
 Server --> VM2
 Server --> VM3
+```
 
+Each VM has its own operating system.
 
-Each VM has separate OS.
+### Containerization
 
-Containerization
-
-Operating-System-Level
-
+```mermaid
 flowchart LR
 
 HostOS --> Container1
 HostOS --> Container2
 HostOS --> Container3
-
+```
 
 Containers share Host OS.
 
-Container Components
+---
 
-Container contains only:
+## Container Components
 
+Contains:
+
+```text
 Application
 Runtime
 Dependencies
+```
 
+Does NOT contain:
 
-No full operating system.
+```text
+Full Operating System
+```
 
-This makes containers:
+Benefits:
 
-✅ Lightweight
+- Lightweight
+- Fast Startup
+- Portable
 
-✅ Fast
+---
 
-✅ Portable
-
-Docker
+# Docker
 
 Most popular containerization platform.
 
 Used to:
 
-Create Images
-Run Containers
-Manage Containers
-DIY Container Approach
+- Create Images
+- Run Containers
+- Manage Containers
 
-Process:
+---
 
+## Docker Commands
+
+### List Images
+
+```bash
+docker images
+```
+
+### List Running Containers
+
+```bash
+docker ps
+```
+
+### Pull Image
+
+```bash
+docker pull nginx
+```
+
+### Run Container
+
+```bash
+docker run -d --name mynginx -p 80:80 nginx
+```
+
+---
+
+## Port Mapping
+
+Example:
+
+```bash
+-p 80:80
+```
+
+Meaning:
+
+```text
+VM Port 80
+↓
+Container Port 80
+```
+
+```mermaid
+flowchart LR
+
+Internet --> VM80
+VM80 --> Container80
+```
+
+---
+
+# DIY Container Deployment
+
+```mermaid
 flowchart TD
 
 VM
  --> DockerInstall
  --> PullImage
  --> RunContainer
-
+```
 
 Steps:
 
-Create VM
-Install Docker
-Pull Image
-Run Container
-Limitations of DIY
+1. Create VM
+2. Install Docker
+3. Pull Image
+4. Run Container
 
-You manage:
+---
 
-VM
-Docker
-Patching
-Monitoring
-Availability
-
-If VM fails:
-
-Container Fails
-
-Docker Commands
-List Images
-docker images
-
-List Running Containers
-docker ps
-
-Pull Image
-docker pull nginx
-
-Run Container
-docker run -d --name mynginx -p 80:80 nginx
-
-Port Mapping
-
-Example:
-
--p 80:80
-
-
-Meaning:
-
-VM Port 80
-→
-Container Port 80
-
-flowchart LR
-
-Internet --> VM80
-VM80 --> Container80
-
-Azure Container Instances (ACI)
+# Azure Container Instances (ACI)
 
 ACI is Azure's managed container service.
 
 Instead of:
 
+```text
 Create VM
 Install Docker
 Manage Everything
+```
 
+You provide:
 
-You simply provide:
-
+```text
 Container Image
-
+```
 
 Azure runs it.
 
-ACI Architecture
+---
+
+## ACI Architecture
+
+```mermaid
 flowchart LR
 
 ContainerImage --> AzureContainerInstance
 AzureContainerInstance --> RunningContainer
+```
 
-Benefits of ACI
+---
+
+## Benefits of ACI
 
 ✅ No VM Management
 
@@ -498,84 +588,82 @@ Benefits of ACI
 
 ✅ Built-In Monitoring
 
-✅ Start/Stop Easily
+✅ Logs Included
 
-✅ Serverless Experience
+✅ Start / Stop Easily
 
 ✅ Fast Deployment
 
-ACI Networking Modes
-Mode	DescriptionPublic	Public IP
-Private	VNet Access
-None	Fully Isolated
-When Use "None"?
+---
 
-Batch Jobs
+## Networking Modes
 
-Background Jobs
+| Mode | Description |
+|--------|--------|
+| Public | Public IP |
+| Private | Virtual Network Access |
+| None | Fully Isolated |
 
-Internal Processing
+---
 
-No user access required.
+## When to Use None?
 
-ACI Features
+Useful for:
 
-Built-in:
+- Batch Jobs
+- Background Jobs
+- Internal Processing
 
-Metrics
-Logs
-Monitoring
-Start / Stop
-Restart
-Container Image Sources
+---
 
-ACI supports:
+# Container Image Sources
 
+```mermaid
 flowchart LR
 
 DockerHub --> ACI
 PrivateRegistry --> ACI
 ACR --> ACI
+```
 
-Docker Hub
+---
 
-Public Registry
+# Docker Hub
+
+Public container registry.
 
 Website:
 
+```text
 hub.docker.com
+```
 
+Contains:
 
-Contains images for:
+- NGINX
+- Ubuntu
+- Python
+- Java
+- MySQL
+- PostgreSQL
 
-NGINX
-Ubuntu
-Python
-Java
-MySQL
-PostgreSQL
+---
 
-and thousands more.
-
-Azure Container Registry (ACR)
+# Azure Container Registry (ACR)
 
 ACR is:
 
-Fully Managed Private Docker Registry
-
+> Fully Managed Private Docker Registry
 
 Used to:
 
-Store Images
-Manage Images
-Secure Images
-Why ACR?
+- Store Images
+- Manage Images
+- Secure Images
 
-Instead of storing images on public Docker Hub:
+---
 
-Store internally and securely
-
-ACR Benefits
+## Benefits of ACR
 
 ✅ Private Registry
 
@@ -591,47 +679,46 @@ ACR Benefits
 
 ✅ Customer Managed Keys
 
-ACR Pricing Tiers
-Tier	PurposeBasic	Learning & Small Workloads
-Standard	Higher Throughput
-Premium	Geo Replication + Advanced Security
-Public vs Private Registry
+---
+
+## Pricing Tiers
+
+| Tier | Purpose |
+|--------|--------|
+| Basic | Learning & Small Workloads |
+| Standard | Higher Throughput |
+| Premium | Geo Replication + Advanced Security |
+
+---
+
+## Public vs Private Registry
+
+```mermaid
 flowchart LR
 
-DockerHub --> Public
+DockerHub --> PublicRegistry
+ACR --> PrivateRegistry
+```
 
-ACR --> Private
+---
 
+# Defender Integration
 
-Docker Hub:
+ACR integrates with:
 
-Public Platform
-
-
-ACR:
-
-Enterprise Private Repository
-
-ACR Security
-
-Premium tier supports:
-
-Private Endpoints
-Geo Replication
-Customer Managed Keys
-Defender Integration
-
-ACR can integrate with:
-
-Microsoft Defender for Cloud
-
+> Microsoft Defender for Cloud
 
 Benefits:
 
-Vulnerability Scanning
-Security Recommendations
-Image Security Assessment
-End-to-End Container Workflow
+- Vulnerability Scanning
+- Security Recommendations
+- Image Security Assessment
+
+---
+
+# End-to-End Container Workflow
+
+```mermaid
 flowchart LR
 
 Developer
@@ -645,23 +732,32 @@ ACR
 
 ACI
  --> RunningApplication
+```
 
-Interview Questions
-Question	AnswerWhat is Azure Function?	Serverless compute service
-What is Event-Driven Architecture?	Code runs when event occurs
-What are Triggers?	Inputs that invoke functions
-What are Bindings?	Outputs from functions
-What is Scale-to-Zero?	No execution = no cost
-Function equivalent in AWS?	Lambda
-What is Container Image?	Packaged application with dependencies
-What is Container?	Running instance of image
-Difference between VM and Container?	VM has OS, Container shares host OS
-What is Docker?	Containerization tool
-What is ACI?	Managed Azure container runtime
-What is ACR?	Private container registry
-Docker Hub vs ACR?	Public vs Private Registry
-Why use ACR?	Security, integration, private storage
-Final Revision Mind Map
+---
+
+# Interview Questions
+
+| Question | Answer |
+|-----------|-----------|
+| What is Azure Function? | Serverless compute service |
+| What is Event-Driven Architecture? | Code runs when an event occurs |
+| What are Triggers? | Inputs that invoke functions |
+| What are Bindings? | Outputs from functions |
+| What is Scale-to-Zero? | No execution = no cost |
+| Function equivalent in AWS? | AWS Lambda |
+| What is Container Image? | Packaged application with dependencies |
+| What is Container? | Running instance of image |
+| Difference between VM and Container? | VM has OS, Container shares host OS |
+| What is Docker? | Containerization platform |
+| What is ACI? | Managed Azure container service |
+| What is ACR? | Private Azure container registry |
+
+---
+
+# Final Revision Mind Map
+
+```mermaid
 mindmap
   root((Azure Compute))
     Virtual Machines
@@ -676,32 +772,38 @@ mindmap
       Serverless
       Triggers
       Bindings
-      Scale to Zero
+      Scale-to-Zero
 
     Containers
-      Image
-      Container
+      Images
       Docker
+      Portability
 
     ACI
       Managed Containers
       Monitoring
-      Public or Private
+      Scaling
 
     ACR
       Private Registry
       Geo Replication
       Security
-      Defender Integration
+```
 
-Key Exam Takeaways
-Azure Functions = AWS Lambda
-Trigger = Function Input Event
-Binding = Function Output
-Scale-to-Zero is a major serverless advantage
-Image ≠ Container (Container is running instance of image)
-Docker creates and runs containers
-ACI is managed container hosting
-ACR is Azure's private Docker registry
-Containers share host OS, VMs have separate OS
-ACR + ACI is a common Azure container deployment pattern
+---
+
+# Key Exam Takeaways
+
+1. Azure Functions = AWS Lambda
+2. Trigger = Function Input Event
+3. Binding = Function Output Destination
+4. Scale-to-Zero reduces cost
+5. Container = Running Instance of Image
+6. Docker creates and runs containers
+7. ACI provides serverless container hosting
+8. ACR is Azure's private image registry
+9. Containers share Host OS
+10. ACR + ACI is a common Azure deployment pattern
+
+
+This version can be pasted directly into GitHub README.md, Obsidian, GitLab, Azure DevOps Wiki, or MkDocs, and all Mermaid diagrams will render correctly.
