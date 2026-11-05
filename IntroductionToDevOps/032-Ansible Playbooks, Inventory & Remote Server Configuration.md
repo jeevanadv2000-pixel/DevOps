@@ -1,31 +1,36 @@
-# DevOps Session — Ansible Playbooks, Inventory & Remote Server Configuration
+# DevOps Session — Ansible Playbooks and Remote Server Configuration
 
-Date: 31 October 2026\
-Instructor: Rochak Agrawal\
-Focus: Writing playbooks, inventory management, SSH authentication, Ansible modules, privilege escalation and configuring remote EC2 instances.
+Date: 31 October 2026 · Instructor: Rochak Agrawal
 
-Notes are condensed from the transcript. Repeated discussions and troubleshooting chatter have been removed. Technical inaccuracies have been corrected.
+Topics: Ad-hoc commands vs playbooks, inventory, YAML syntax, SSH authentication, remote server management, privilege escalation, NGINX installation, modules and collections.
 
-## 1. Ad-hoc Commands vs Playbooks
+I’ve corrected speech-to-text errors such as “Ensemble” to Ansible, “SSEC” to SSH, “APT cache” references and other technical terms. I've also clarified a few inaccuracies in the lecture, especially around SSH key compatibility and playbook execution.
 
-In the previous session, we learned that Ansible supports two ways of executing tasks.
+## 1. Ad-hoc commands vs playbooks
 
-| Ad-hoc commands             | Playbooks                        |
-| --------------------------- | -------------------------------- |
-| Execute one-time tasks      | Execute multiple organized tasks |
-| Run directly from terminal  | Written in YAML                  |
-| Useful for quick operations | Useful for repeatable automation |
-| Less structured             | Easier to maintain and reuse     |
+In the previous session, we learned about Ansible ad-hoc commands. In this session, the instructor demonstrated how to perform the same operations using playbooks.
 
-Example of an ad-hoc command:
+| Ad-hoc command                   | Playbook                                             |
+| -------------------------------- | ---------------------------------------------------- |
+| Executes a single task           | Executes one or more plays containing multiple tasks |
+| Runs directly from the terminal  | Written in a YAML file                               |
+| Suitable for one-time operations | Suitable for repeatable automation                   |
+| Less structured                  | Organized and reusable                               |
+| Good for quick checks            | Good for configuration management                    |
+
+### Example: Ad-hoc command
+
+Create a file on localhost:
 
 ```
-ansible localhost -m ansible.builtin.file \
-  -a "path=/tmp/demo.txt state=touch" \
-  -c local
+ansible localhost \
+  -m ansible.builtin.file \
+  -a "path=/tmp/demo.txt state=touch"
 ```
 
-The same operation using a playbook:
+### Same operation using a playbook
+
+Create `playbook.yml`:
 
 ```
 ---
@@ -40,89 +45,172 @@ The same operation using a playbook:
         state: touch
 ```
 
-Important: Both approaches use Ansible modules. The difference is how you organize and execute the automation.
+Execute:
+
+```
+ansible-playbook -i inventory.ini playbook.yml
+```
+
+Understanding the command:
+
+| Part               | Purpose                          |
+| ------------------ | -------------------------------- |
+| `ansible-playbook` | Executes the playbook            |
+| `-i inventory.ini` | Specifies the inventory file     |
+| `playbook.yml`     | Specifies what Ansible should do |
+
+Remember: Inventory tells Ansible where to run. The playbook tells Ansible what to do.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
-GitHub+1
+GitHub+2
 
-## 2. Inventory File — Where to Execute?
+## 2. Inventory file — where to manage servers
 
-An inventory file contains the servers Ansible should manage.
+An inventory file contains the list of servers that Ansible should manage.
 
-For example, an organization might have:
+The instructor demonstrated two approaches:
 
-- 10 web servers.
-- 20 application servers.
-- 5 database servers.
+1. Using the default inventory file.
+2. Creating a separate inventory file and passing it through `-i`.
 
-Instead of maintaining every server in one shared default inventory, teams can organize their servers using separate inventory files or groups.
+### Default inventory
 
-### Example: `inventory.ini`
+The commonly configured default inventory path is:
+
+```
+/etc/ansible/hosts
+```
+
+When you run Ansible without specifying `-i`, Ansible uses the inventory configured in `ansible.cfg`. In a standard installation, this is commonly `/etc/ansible/hosts`.
+
+Example:
+
+```
+ansible all -m ansible.builtin.ping
+```
+
+### Custom inventory
+
+You can create your own inventory file anywhere.
+
+Example:
+
+```
+project/
+├── inventory.ini
+└── playbook.yml
+```
+
+`inventory.ini`:
 
 ```
 [webservers]
 192.168.1.10
 192.168.1.11
 
-[appservers]
-192.168.1.20
-
 [dbservers]
-192.168.1.30
+192.168.1.20
+```
+
+Execute:
+
+```
+ansible-playbook -i inventory.ini playbook.yml
 ```
 
 ### Can we create multiple inventory files?
 
-Yes. Inventory files can have different names and locations.
+Yes. The instructor explained why organizations often maintain different inventory files for different teams or environments.
 
 For example:
 
 ```
-ansible-project/
-├── inventory/
-│   ├── dev.ini
-│   ├── prod.ini
-│   └── database.ini
-│
-├── playbooks/
-│   ├── nginx.yml
-│   └── database.yml
+inventories/
+├── java-servers.ini
+├── python-servers.ini
+├── dev-servers.ini
+└── prod-servers.ini
 ```
 
-Run a playbook with a specific inventory:
+Run a playbook using a particular inventory:
 
 ```
-ansible-playbook -i inventory/dev.ini playbooks/nginx.yml
+ansible-playbook -i inventories/java-servers.ini install-java.yml
 ```
 
-Here:
+Or:
 
-| Command part          | Purpose                 |
-| --------------------- | ----------------------- |
-| `ansible-playbook`    | Runs a playbook         |
-| `-i`                  | Specifies the inventory |
-| `inventory/dev.ini`   | Inventory file location |
-| `playbooks/nginx.yml` | Playbook to execute     |
+```
+ansible-playbook -i inventories/python-servers.ini install-python.yml
+```
 
-### What happens if we don't specify `-i`?
+Important points:
 
-Ansible uses its configured default inventory source. A common default is `/etc/ansible/hosts`, although the actual path can be changed in `ansible.cfg`.
+- Inventory filenames can be anything.
+- `.ini` is a common format, but YAML inventory is also supported.
+- Inventory files can be stored in different directories.
+- Provide the correct path using `-i`.
+- You can organize hosts into groups instead of maintaining separate files.
 
-Remember:
+### Why not always use the default inventory?
 
-- Inventory = Where to execute.
-- Playbook = What to execute.
+Imagine an organization has:
+
+- 10 servers requiring Java.
+- 20 servers requiring Python.
+- 50 web servers.
+- 30 database servers.
+
+Separate inventories or groups make it easier to target the correct machines and allow teams to maintain their own host lists.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+1
 
-## 3. Understanding Plays and Tasks
+## 3. Playbook structure — play and tasks
 
-A playbook can contain multiple plays, and each play can contain multiple tasks.
+The instructor demonstrated creating multiple tasks within a play and multiple plays within a single playbook.
 
-Example:
+### Understand the hierarchy
+
+Playbook
+
+playbook.yml
+
+Play 1 — Manage files
+
+Task 1 — Create file
+
+Task 2 — Change ownership
+
+Play 2 — Manage directories
+
+Task 1 — Create directory
+
+Task 2 — Set permissions
+
+### Example: Multiple tasks in one play
+
+```
+---
+- name: Manage local files
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Ensure file exists
+      ansible.builtin.file:
+        path: /tmp/demo.txt
+        state: touch
+
+    - name: Change file ownership
+      ansible.builtin.file:
+        path: /tmp/demo.txt
+        owner: ubuntu
+```
+
+### Example: Multiple plays in one playbook
 
 ```
 ---
@@ -136,11 +224,6 @@ Example:
         path: /tmp/demo.txt
         state: touch
 
-    - name: Change file permissions
-      ansible.builtin.file:
-        path: /tmp/demo.txt
-        mode: '0644'
-
 - name: Manage directories
   hosts: localhost
   connection: local
@@ -148,39 +231,49 @@ Example:
   tasks:
     - name: Create project directory
       ansible.builtin.file:
-        path: /tmp/new-project
+        path: /home/ubuntu/new-project
         state: directory
-        mode: '0755'
+        owner: ubuntu
+        mode: "0755"
 ```
 
-### Visualize the structure
+Key distinction:
 
-\#chatgpt-mermaid-\_r_fd2\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_fd2\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_fd2\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_fd2\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_fd2\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fd2\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_fd2\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_fd2\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_fd2\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_fd2\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_fd2\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_fd2\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fd2\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fd2\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_fd2\_ p{margin:0;}#chatgpt-mermaid-\_r_fd2\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fd2\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fd2\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fd2\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_fd2\_ .label text,#chatgpt-mermaid-\_r_fd2\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fd2\_ .node rect,#chatgpt-mermaid-\_r_fd2\_ .node circle,#chatgpt-mermaid-\_r_fd2\_ .node ellipse,#chatgpt-mermaid-\_r_fd2\_ .node polygon,#chatgpt-mermaid-\_r_fd2\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_fd2\_ .rough-node .label text,#chatgpt-mermaid-\_r_fd2\_ .node .label text,#chatgpt-mermaid-\_r_fd2\_ .image-shape .label,#chatgpt-mermaid-\_r_fd2\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_fd2\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_fd2\_ .rough-node .label,#chatgpt-mermaid-\_r_fd2\_ .node .label,#chatgpt-mermaid-\_r_fd2\_ .image-shape .label,#chatgpt-mermaid-\_r_fd2\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_fd2\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_fd2\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fd2\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fd2\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_fd2\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_fd2\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_fd2\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_fd2\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_fd2\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_fd2\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_fd2\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fd2\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fd2\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_fd2\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fd2\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_fd2\_ .icon-shape,#chatgpt-mermaid-\_r_fd2\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_fd2\_ .icon-shape p,#chatgpt-mermaid-\_r_fd2\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_fd2\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_fd2\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_fd2\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_fd2\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_fd2\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_fd2\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_fd2\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_fd2\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_fd2\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fd2\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_fd2\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_fd2\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_fd2\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fd2\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_fd2\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_fd2\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fd2\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_fd2\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_fd2\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fd2\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_fd2\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fd2\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_fd2\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_fd2\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_fd2\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_fd2\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_fd2\_ .node rect,#chatgpt-mermaid-\_r_fd2\_ .node circle,#chatgpt-mermaid-\_r_fd2\_ .node ellipse,#chatgpt-mermaid-\_r_fd2\_ .node polygon,#chatgpt-mermaid-\_r_fd2\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_fd2\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_fd2\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_fd2\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_fd2\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fd2\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}PlaybookPlay 1: Manage FilesPlay 2: Manage DirectoriesTask 1: Create FileTask 2: Change PermissionsTask 1: Create Directory
+- One playbook can contain multiple plays.
+- Each play can contain multiple tasks.
+- Each task normally calls a module.
+- Tasks within a play execute in the order written.
 
-### Important: Task execution order
+### Task execution order matters
 
-Ansible normally executes tasks in the order in which they appear in a play.
+Unlike Terraform's dependency graph, Ansible normally executes tasks sequentially in the order they appear within a play.
 
 For example:
 
-1. Install NGINX.
-2. Start NGINX.
+Task 1: Install NGINX
 
-You cannot expect the service to start successfully if you try to start it before installing it.
+Task 2: Configure NGINX
 
-Unlike Terraform's dependency graph, Ansible generally follows the task order you define. You must organize the sequence correctly.
+Task 3: Start NGINX
+
+If you try to start NGINX before installing it, the task may fail because the service does not exist.
+
+Remember: Plan the order of your tasks according to their dependencies.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub
 
-## 4. YAML Indentation and Syntax Validation
+## 4. YAML syntax and indentation
 
-Ansible playbooks use YAML, so indentation is very important.
+Ansible playbooks are generally written in YAML.
 
-Correct:
+YAML is indentation-sensitive, meaning spaces determine the structure and hierarchy.
+
+Example:
 
 ```
+---
 - name: Install NGINX
   hosts: webservers
 
@@ -191,109 +284,164 @@ Correct:
         state: present
 ```
 
-Incorrect indentation can cause YAML parsing errors or change the meaning of the configuration.
+Notice:
 
-### How to validate a playbook?
+- `tasks` is under the play.
+- The task name is under `tasks`.
+- The module is under the task.
+- Module arguments are indented under the module.
 
-The instructor discussed syntax validation but did not demonstrate the exact command.
+### Common YAML mistakes
 
-The correct command is:
-
-```
-ansible-playbook --syntax-check -i inventory.ini playbook.yml
-```
-
-To format and lint your playbooks, you can also use:
+Incorrect:
 
 ```
-ansible-lint playbook.yml
+tasks:
+- name: Install NGINX
+  ansible.builtin.apt:
+  name: nginx
+  state: present
 ```
 
-`ansible-lint` is an additional tool that may need to be installed separately.
+Correct:
 
-Tip: Use the Ansible extension in VS Code for YAML validation, syntax highlighting and autocomplete.
+```
+tasks:
+  - name: Install NGINX
+    ansible.builtin.apt:
+      name: nginx
+      state: present
+```
+
+### Validate playbook syntax
+
+The instructor briefly discussed syntax validation. The correct command is:
+
+```
+ansible-playbook --syntax-check playbook.yml
+```
+
+With a custom inventory:
+
+```
+ansible-playbook \
+  -i inventory.ini \
+  --syntax-check \
+  playbook.yml
+```
+
+This checks playbook syntax without executing the tasks.
+
+Additional recommendation: Use a YAML-aware editor or VS Code with Ansible and YAML extensions to catch indentation and syntax mistakes while writing.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+1
 
-## 5. Connecting Ansible to a Remote EC2 Instance
+## 5. Connecting Ansible to remote EC2 servers
 
 This was the major practical demonstration in the session.
 
-Previously, the instructor executed playbooks on `localhost`. Now, the objective was to configure a separate Ubuntu EC2 instance from the Ansible control node.
+Previously, the instructor executed tasks on `localhost`. Now the goal was to configure a separate Ubuntu EC2 instance from the Ansible control node.
 
 ### Architecture
 
-[Ansible tutorial with AWS EC2 | End Point Dev](https://images.openai.com/static-rsc-4/5zr2irx1z_e-v19FqtSyeJdC3O_ziZqO33pJtrYjfoXdVcP9MKkxVqoVO6ijgvzxi_ZiSmpm6iFO30OGNT-gzmOycSWl3SBU06BSTd7qx-VfmG77AzU9JvFouq5IV6kuwtSAico2WI-dtUeEFyukiuln_1rL0arak0B4jBjT9-U?purpose=inline)
+Ansible control node
 
-[endpointdev.com](https://www.endpointdev.com/blog/2022/08/ansible-tutorial-with-aws-ec2/?utm_source=chatgpt.com)
+Runs Ansible and stores playbooks
 
-\#chatgpt-mermaid-\_r_fe3\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_fe3\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_fe3\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_fe3\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_fe3\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fe3\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_fe3\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_fe3\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_fe3\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_fe3\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_fe3\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_fe3\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fe3\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fe3\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_fe3\_ p{margin:0;}#chatgpt-mermaid-\_r_fe3\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fe3\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fe3\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fe3\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_fe3\_ .label text,#chatgpt-mermaid-\_r_fe3\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fe3\_ .node rect,#chatgpt-mermaid-\_r_fe3\_ .node circle,#chatgpt-mermaid-\_r_fe3\_ .node ellipse,#chatgpt-mermaid-\_r_fe3\_ .node polygon,#chatgpt-mermaid-\_r_fe3\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_fe3\_ .rough-node .label text,#chatgpt-mermaid-\_r_fe3\_ .node .label text,#chatgpt-mermaid-\_r_fe3\_ .image-shape .label,#chatgpt-mermaid-\_r_fe3\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_fe3\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_fe3\_ .rough-node .label,#chatgpt-mermaid-\_r_fe3\_ .node .label,#chatgpt-mermaid-\_r_fe3\_ .image-shape .label,#chatgpt-mermaid-\_r_fe3\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_fe3\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_fe3\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fe3\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fe3\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_fe3\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_fe3\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_fe3\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_fe3\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_fe3\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_fe3\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_fe3\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fe3\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fe3\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_fe3\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fe3\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_fe3\_ .icon-shape,#chatgpt-mermaid-\_r_fe3\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_fe3\_ .icon-shape p,#chatgpt-mermaid-\_r_fe3\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_fe3\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_fe3\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_fe3\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_fe3\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_fe3\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_fe3\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_fe3\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_fe3\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_fe3\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fe3\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_fe3\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_fe3\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_fe3\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fe3\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_fe3\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_fe3\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fe3\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_fe3\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_fe3\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fe3\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_fe3\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fe3\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_fe3\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_fe3\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_fe3\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_fe3\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_fe3\_ .node rect,#chatgpt-mermaid-\_r_fe3\_ .node circle,#chatgpt-mermaid-\_r_fe3\_ .node ellipse,#chatgpt-mermaid-\_r_fe3\_ .node polygon,#chatgpt-mermaid-\_r_fe3\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_fe3\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_fe3\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_fe3\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_fe3\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fe3\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}Control NodeAnsible installedManaged EC2UbuntuInventory FilePlaybookExecute tasksReturn resultsSSH / Port 22
+SSH connection
 
-### Prerequisites
+TCP port 22
 
-Before Ansible can configure a remote machine, ensure:
+Remote Ubuntu EC2
 
-1. The control node can reach the managed node over the network.
-2. SSH is running on the managed node.
-3. The SSH username is correct.
-4. Authentication is configured.
-5. The security group allows inbound SSH on port 22 from the control node.
-6. The managed node has Python available for most Ansible modules.
+Managed node
 
-### SSH passwordless authentication
+### Step 1: Create the remote EC2 instance
 
-The instructor demonstrated public-key authentication.
+The instructor launched a second Ubuntu EC2 instance.
 
-The process:
+Important requirements:
 
-1. Generate an SSH key pair on the control node.
-2. Copy the public key to the managed node.
-3. Connect using the corresponding private key.
+- Ubuntu AMI.
+- Valid SSH username (`ubuntu`).
+- Network connectivity between the two instances.
+- Security group allowing inbound SSH on TCP port 22 from the control node.
 
-Generate an Ed25519 key:
+If both instances are in the same VPC and have suitable routing, private IP connectivity is usually preferable.
+
+### Step 2: Add the remote server to inventory
+
+Example:
+
+```
+[webservers]
+web1 ansible_host=172.31.10.20 ansible_user=ubuntu
+```
+
+Here:
+
+| Variable       | Meaning             |
+| -------------- | ------------------- |
+| `webservers`   | Inventory group     |
+| `web1`         | Inventory alias     |
+| `ansible_host` | Actual server IP    |
+| `ansible_user` | Remote SSH username |
+
+### Step 3: Configure SSH authentication
+
+Ansible needs to authenticate with the remote server.
+
+The common approach is SSH key-based authentication.
+
+Control node
+
+`id_ed25519` — private key
+
+Keep secret
+
+Copy public key only
+
+Remote server
+
+`authorized_keys`
+
+Stores public key
+
+Generate an ED25519 key pair on the control node:
 
 ```
 ssh-keygen -t ed25519
 ```
 
-This generates:
-
-| File                    | Purpose                    |
-| ----------------------- | -------------------------- |
-| `~/.ssh/id_ed25519`     | Private key — keep secret  |
-| `~/.ssh/id_ed25519.pub` | Public key — can be shared |
-
-Copy the public key:
+This creates:
 
 ```
-ssh-copy-id -i ~/.ssh/id_ed25519.pub ubuntu@MANAGED_SERVER_IP
+~/.ssh/id_ed25519
+~/.ssh/id_ed25519.pub
 ```
 
-Test the connection:
+| File             | Purpose                                     |
+| ---------------- | ------------------------------------------- |
+| `id_ed25519`     | Private key; never share                    |
+| `id_ed25519.pub` | Public key; can be copied to remote servers |
+
+### Step 4: Copy the public key
+
+If you already have a way to authenticate to the remote server, use:
 
 ```
-ssh ubuntu@MANAGED_SERVER_IP
+ssh-copy-id -i ~/.ssh/id_ed25519.pub ubuntu@172.31.10.20
 ```
 
-Important correction from the session: The instructor initially tried an RSA key and later suggested RSA might not be supported by AWS EC2. That is not generally true. EC2 Linux instances support SSH RSA keys when the client and server configurations permit them. Ed25519 is a convenient modern option, but the RSA algorithm itself is not inherently incompatible with EC2.
+Alternatively, manually append the public key to the remote user's:
 
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+```
+~/.ssh/authorized_keys
+```
 
-GitHub+2
-
-### SSH troubleshooting checklist
-
-| Error                         | What to check                                                |
-| ----------------------------- | ------------------------------------------------------------ |
-| Permission denied (publickey) | Username, correct private/public key pair, `authorized_keys` |
-| Connection timed out          | Security group, network ACL, routing, firewall               |
-| No route to host              | Network connectivity and routing                             |
-| Host key verification failed  | Remote host key in `known_hosts`                             |
-| Unprotected private key       | Private key permissions, normally `600` or stricter          |
-
-Useful commands:
+Typical permissions:
 
 ```
 chmod 700 ~/.ssh
@@ -301,85 +449,107 @@ chmod 600 ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/id_ed25519
 ```
 
-For 100 servers, you do not need to copy the public key manually to every server. You can automate the process using `ssh-copy-id` in a loop, provided you have the necessary initial authentication and access.
+Test the connection:
 
-## 6. Inventory Configuration for Remote Servers
+```
+ssh -i ~/.ssh/id_ed25519 ubuntu@172.31.10.20
+```
 
-Once SSH connectivity is established, add the managed server to your inventory.
+Once SSH works from the control node, Ansible can use the same connection.
 
-Example: `inventory.ini`
+[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+
+GitHub+3
+
+### Important correction: RSA vs ED25519
+
+During the demonstration, the instructor suggested that RSA 4096 was not supported by AWS EC2 and that changing to the default SSH key resolved the problem.
+
+That explanation is not technically correct.
+
+AWS EC2 supports both RSA and ED25519 key pairs. The demonstration's failure could have resulted from a key mismatch, key format, SSH configuration or another authentication issue. We cannot conclude that RSA 4096 was unsupported.
+
+AWS documentation confirms the supported key types.&#x20;
+
+[image](https://www.google.com/s2/favicons?domain=https://docs.aws.amazon.com\&sz=32)
+
+Amazon Elastic Compute Cloud+1
+
+
+
+## 6. SSH authentication troubleshooting
+
+The instructor spent a considerable amount of time troubleshooting SSH connectivity.
+
+These are the main problems to understand.
+
+| Error                           | Possible reason                  | What to check                                        |
+| ------------------------------- | -------------------------------- | ---------------------------------------------------- |
+| `Permission denied (publickey)` | Incorrect or unaccepted key      | Username, private/public key pair, `authorized_keys` |
+| `Connection timed out`          | Network connectivity problem     | Security group, routing, firewall                    |
+| `No route to host`              | No valid network path            | Subnet routes, network ACLs, IP address              |
+| `Host key verification failed`  | Host identity verification issue | `known_hosts` entry and server identity              |
+| `UNREACHABLE`                   | Ansible cannot connect to target | SSH connectivity and authentication                  |
+
+### Test SSH manually first
+
+Before running a playbook, test the connection:
+
+```
+ssh -i ~/.ssh/id_ed25519 ubuntu@172.31.10.20
+```
+
+If this does not work, troubleshoot SSH first.
+
+### Useful Ansible inventory configuration
 
 ```
 [webservers]
-web1 ansible_host=192.168.1.10 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_ed25519
+web1 ansible_host=172.31.10.20 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_ed25519
 ```
 
-Here:
+The `ansible_ssh_private_key_file` variable tells Ansible which private key to use.
 
-| Parameter                      | Meaning                             |
-| ------------------------------ | ----------------------------------- |
-| `web1`                         | Inventory alias                     |
-| `ansible_host`                 | Actual IP address                   |
-| `ansible_user`                 | SSH username                        |
-| `ansible_ssh_private_key_file` | Private key used for authentication |
+### SSH key setup for many servers
 
-Test connectivity:
+The instructor also explained how to automate public-key distribution to many servers.
 
-```
-ansible webservers -i inventory.ini -m ansible.builtin.ping
-```
+For example, if you have 100 servers:
 
-The Ansible `ping` module checks whether Ansible can connect and execute a module. It is not the same as the Linux network `ping` command.
+1. Store their IP addresses in a file.
+2. Read the file line by line.
+3. Use `ssh-copy-id` to distribute the public key.
+4. Test the SSH connection.
+
+This avoids manually copying the key to every machine.
+
+Security note: Do not put passwords directly into inventory files. Use SSH keys or a secure credential-management method. Password-based SSH authentication is possible, but it should be configured carefully.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
-GitHub+1
+GitHub+2
 
-## 7. Privilege Escalation — `become: true`
+## 7. Install NGINX using an Ansible playbook
 
-Installing packages and modifying system services generally requires administrator privileges.
+This was the main successful remote configuration demonstration.
+
+The instructor created a separate playbook to install NGINX on the remote Ubuntu server.
+
+### What is `become: true`?
+
+The remote user `ubuntu` normally does not have permission to install system packages directly.
+
+Installing NGINX requires elevated privileges.
 
 Ansible provides privilege escalation through `become`.
 
-Example:
-
 ```
----
-- name: Install NGINX
-  hosts: webservers
-  become: true
-
-  tasks:
-    - name: Install NGINX
-      ansible.builtin.apt:
-        name: nginx
-        state: present
-        update_cache: true
+become: true
 ```
 
-### What does `become: true` do?
+This is equivalent to requesting elevated privileges, commonly through `sudo`.
 
-It tells Ansible to execute tasks with elevated privileges, usually through `sudo`.
-
-| Setting               | Purpose                       |
-| --------------------- | ----------------------------- |
-| `become: true`        | Enable privilege escalation   |
-| `become_user: root`   | Specify the target user       |
-| `become_method: sudo` | Specify the escalation method |
-
-You can define `become` at the play level or task level.
-
-Important: The SSH user must have permission to escalate privileges. Ansible does not automatically grant administrator access.
-
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
-
-GitHub
-
-## 8. Installing and Starting NGINX Using Ansible
-
-The instructor demonstrated installing NGINX on an Ubuntu managed node.
-
-Complete example:
+### NGINX playbook
 
 ```
 ---
@@ -388,122 +558,221 @@ Complete example:
   become: true
 
   tasks:
-    - name: Update APT cache and install NGINX
+    - name: Update apt cache and install NGINX
       ansible.builtin.apt:
         name: nginx
         state: present
         update_cache: true
 
-    - name: Ensure NGINX is running
+    - name: Start and enable NGINX
       ansible.builtin.service:
         name: nginx
         state: started
         enabled: true
 ```
 
-Run:
+### Understand the important parameters
+
+| Parameter                 | Meaning                       |
+| ------------------------- | ----------------------------- |
+| `hosts`                   | Target inventory group        |
+| `become: true`            | Use privilege escalation      |
+| `ansible.builtin.apt`     | Manage Ubuntu/Debian packages |
+| `name: nginx`             | Package to install            |
+| `state: present`          | Ensure package is installed   |
+| `update_cache: true`      | Update package metadata       |
+| `ansible.builtin.service` | Manage system services        |
+| `state: started`          | Ensure service is running     |
+| `enabled: true`           | Enable service at boot        |
+
+### Execute the playbook
 
 ```
-ansible-playbook -i inventory.ini nginx.yml
+ansible-playbook -i inventory.ini nginx-playbook.yml
 ```
 
-### Understand the modules
+### What happens?
 
-| Module                    | Purpose                                    |
-| ------------------------- | ------------------------------------------ |
-| `ansible.builtin.apt`     | Installs or removes Debian/Ubuntu packages |
-| `ansible.builtin.service` | Starts, stops or restarts services         |
+Ansible control node
 
-### Understand the arguments
+Runs nginx-playbook.yml
 
-| Argument             | Meaning                          |
-| -------------------- | -------------------------------- |
-| `name: nginx`        | Package or service name          |
-| `state: present`     | Ensure package is installed      |
-| `state: started`     | Ensure service is running        |
-| `update_cache: true` | Refresh package repository cache |
-| `enabled: true`      | Enable service at system startup |
+Remote Ubuntu server
 
-Important: The `apt` module is for Debian-based systems such as Ubuntu. For Amazon Linux 2023, use the `dnf` module instead.
+SSH connection + privilege escalation
+
+1. Update package cache.
+2. Install NGINX if missing.
+3. Start NGINX.
+4. Enable NGINX at boot.
+
+NGINX configured
+
+### Why is this idempotent?
+
+When you run the same playbook again:
+
+- If NGINX is installed, it does not reinstall unnecessarily.
+- If NGINX is running, it does not restart unnecessarily.
+- If NGINX is enabled at boot, it does not need to change that setting.
+
+The goal is to maintain the desired state without unnecessary changes.
+
+Important: `state: touch` in the earlier file demonstration can update timestamps on repeated executions. It should not be treated as a perfect example of a no-change second run. The package and service examples above are better illustrations of idempotent configuration.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
-GitHub
+GitHub+1
 
-## 9. Understanding Ansible Output and Idempotency
+## 8. Ansible task results and verbosity
 
-When you execute a playbook, Ansible reports the result of each task.
+The instructor demonstrated how to inspect Ansible execution results.
 
-| Status        | Meaning                               |
-| ------------- | ------------------------------------- |
-| `ok`          | Task completed; no change was needed  |
-| `changed`     | Task modified the managed system      |
-| `failed`      | Task execution failed                 |
-| `skipped`     | Task was skipped                      |
-| `unreachable` | Ansible could not connect to the host |
+### Common task statuses
 
-Example:
-
-First execution:
-
-```
-TASK [Install NGINX]
-changed: [web1]
-
-TASK [Ensure NGINX is running]
-changed: [web1]
-```
-
-Second execution:
-
-```
-TASK [Install NGINX]
-ok: [web1]
-
-TASK [Ensure NGINX is running]
-ok: [web1]
-```
-
-This demonstrates idempotency.
-
-If someone manually removes NGINX, running the playbook again will install it because the desired state is `present`.
-
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
-
-GitHub
-
-## 10. Ansible Verbosity — Debugging
-
-When a playbook fails, you may need more information.
-
-Ansible supports different verbosity levels:
-
-| Command | Verbosity |
-| ------- | --------- |
-| `-v`    | Level 1   |
-| `-vv`   | Level 2   |
-| `-vvv`  | Level 3   |
-| `-vvvv` | Level 4   |
+| Status        | Meaning                                 |
+| ------------- | --------------------------------------- |
+| `ok`          | Task completed; no change was necessary |
+| `changed`     | Ansible made a change                   |
+| `failed`      | Task execution failed                   |
+| `unreachable` | Ansible could not connect to the host   |
+| `skipped`     | Task was skipped                        |
 
 Example:
 
 ```
-ansible-playbook -i inventory.ini nginx.yml -vvv
+PLAY RECAP
+web1 : ok=3 changed=2 unreachable=0 failed=0
 ```
 
-This provides more detailed execution information, useful for troubleshooting SSH connections, task execution and module behaviour.
+Interpretation:
+
+- `ok=3`: Three tasks completed successfully without changes.
+- `changed=2`: Two tasks made changes.
+- `unreachable=0`: All targeted hosts were reachable.
+- `failed=0`: No task failed.
+
+The play recap may include fact gathering as an additional task. This explains why the instructor saw more successful tasks than the number of tasks explicitly written in the playbook.
+
+### Verbosity levels
+
+Ansible provides verbosity options for troubleshooting.
+
+| Command | Meaning           |
+| ------- | ----------------- |
+| `-v`    | Level 1 verbosity |
+| `-vv`   | Level 2 verbosity |
+| `-vvv`  | Level 3 verbosity |
+| `-vvvv` | Level 4 verbosity |
+
+Example:
+
+```
+ansible-playbook -i inventory.ini nginx-playbook.yml -vvv
+```
+
+Use verbosity when investigating connection problems, task failures or unexpected changes.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
-GitHub
+GitHub+1
 
-## 11. Multiple Playbooks vs Multiple Plays
+## 9. Modules and collections
 
-A common question in the session was whether multiple playbooks can be run together.
+The instructor explained that Ansible uses modules to perform different operations.
 
-An individual `ansible-playbook` invocation normally takes one playbook file. However, one playbook can contain multiple plays targeting different server groups.
+Examples:
 
-Example:
+| Module    | Purpose                                         |
+| --------- | ----------------------------------------------- |
+| `file`    | Create files/directories and manage permissions |
+| `copy`    | Copy files                                      |
+| `command` | Execute commands without a shell                |
+| `shell`   | Execute commands through a shell                |
+| `apt`     | Manage Ubuntu/Debian packages                   |
+| `service` | Manage services                                 |
+| `user`    | Manage users                                    |
+| `package` | Generic package-management interface            |
+
+### Why use modules instead of shell commands?
+
+Suppose you want to install NGINX.
+
+You could use:
+
+```
+ansible.builtin.shell: apt install nginx -y
+```
+
+Or you could use:
+
+```
+ansible.builtin.apt:
+  name: nginx
+  state: present
+```
+
+The second option is generally better because the Ansible module understands package state and can avoid unnecessary changes.
+
+### What is a collection?
+
+A collection is a package of related Ansible content, such as:
+
+- Modules.
+- Plugins.
+- Roles.
+- Documentation.
+
+Ansible's built-in modules are available through the `ansible.builtin` collection.
+
+For example:
+
+```
+ansible.builtin.service:
+```
+
+The instructor also discussed AWS modules. To manage AWS infrastructure, you can install an appropriate AWS collection, such as `amazon.aws`, and configure its dependencies and AWS credentials.
+
+Example installation:
+
+```
+ansible-galaxy collection install amazon.aws
+```
+
+For AWS resource operations, you also need suitable AWS credentials, IAM permissions and required Python dependencies on the control node.
+
+### Can Ansible configure Jenkins?
+
+Yes.
+
+Examples:
+
+| Requirement                         | Possible approach                            |
+| ----------------------------------- | -------------------------------------------- |
+| Install Jenkins                     | Package-management module                    |
+| Start Jenkins                       | Service module                               |
+| Restart Jenkins                     | Service module                               |
+| Copy Jenkins configuration          | Copy/template modules                        |
+| Execute Jenkins CLI commands        | Command or shell module                      |
+| Configure Jenkins-specific settings | Appropriate Jenkins collection/module or API |
+
+The important distinction is that you do not need a special Jenkins collection for every task. Built-in modules can perform many operating-system-level operations.
+
+[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+
+GitHub+1
+
+## 10. Can one playbook manage different server groups?
+
+Yes. This was another important question raised during the session.
+
+Imagine you have:
+
+- Web servers.
+- Application servers.
+- Database servers.
+
+You can create different plays inside one playbook.
 
 ```
 ---
@@ -517,6 +786,16 @@ Example:
         name: nginx
         state: present
 
+- name: Configure application servers
+  hosts: appservers
+  become: true
+
+  tasks:
+    - name: Install Java
+      ansible.builtin.apt:
+        name: default-jdk
+        state: present
+
 - name: Configure database servers
   hosts: dbservers
   become: true
@@ -528,101 +807,122 @@ Example:
         state: present
 ```
 
-\#chatgpt-mermaid-\_r_fh7\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_fh7\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_fh7\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_fh7\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_fh7\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fh7\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_fh7\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_fh7\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_fh7\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_fh7\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_fh7\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_fh7\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fh7\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fh7\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_fh7\_ p{margin:0;}#chatgpt-mermaid-\_r_fh7\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fh7\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fh7\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fh7\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_fh7\_ .label text,#chatgpt-mermaid-\_r_fh7\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fh7\_ .node rect,#chatgpt-mermaid-\_r_fh7\_ .node circle,#chatgpt-mermaid-\_r_fh7\_ .node ellipse,#chatgpt-mermaid-\_r_fh7\_ .node polygon,#chatgpt-mermaid-\_r_fh7\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_fh7\_ .rough-node .label text,#chatgpt-mermaid-\_r_fh7\_ .node .label text,#chatgpt-mermaid-\_r_fh7\_ .image-shape .label,#chatgpt-mermaid-\_r_fh7\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_fh7\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_fh7\_ .rough-node .label,#chatgpt-mermaid-\_r_fh7\_ .node .label,#chatgpt-mermaid-\_r_fh7\_ .image-shape .label,#chatgpt-mermaid-\_r_fh7\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_fh7\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_fh7\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fh7\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fh7\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_fh7\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_fh7\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_fh7\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_fh7\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_fh7\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_fh7\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_fh7\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fh7\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fh7\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_fh7\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_fh7\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_fh7\_ .icon-shape,#chatgpt-mermaid-\_r_fh7\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_fh7\_ .icon-shape p,#chatgpt-mermaid-\_r_fh7\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_fh7\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_fh7\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_fh7\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_fh7\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_fh7\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_fh7\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_fh7\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_fh7\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_fh7\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fh7\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_fh7\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_fh7\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_fh7\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fh7\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_fh7\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_fh7\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fh7\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_fh7\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_fh7\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fh7\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_fh7\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_fh7\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_fh7\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_fh7\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_fh7\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_fh7\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_fh7\_ .node rect,#chatgpt-mermaid-\_r_fh7\_ .node circle,#chatgpt-mermaid-\_r_fh7\_ .node ellipse,#chatgpt-mermaid-\_r_fh7\_ .node polygon,#chatgpt-mermaid-\_r_fh7\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_fh7\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_fh7\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_fh7\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_fh7\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_fh7\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}site.ymlPlay 1Play 2webservers groupdbservers groupInstall NGINXInstall PostgreSQL
+### Visual understanding
 
-Run:
+One playbook
 
-```
-ansible-playbook -i inventory.ini site.yml
-```
+Play 1
 
-This is a clean way to manage different types of servers from one playbook.
+webservers
 
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+NGINX
 
-GitHub
+Play 2
 
-## 12. Ansible Modules and Collections
+appservers
 
-Ansible provides modules for different operations.
+Java
 
-Examples:
+Play 3
 
-| Requirement          | Module                       |
-| -------------------- | ---------------------------- |
-| Install packages     | `apt`, `dnf`, `package`      |
-| Manage services      | `service`, `systemd_service` |
-| Create files         | `file`                       |
-| Copy files           | `copy`                       |
-| Execute commands     | `command`, `shell`           |
-| Manage AWS resources | AWS collection modules       |
-| Manage users         | `user`                       |
+dbservers
 
-### What is a Collection?
+PostgreSQL
 
-A collection is a package of related Ansible content, such as modules, plugins, roles and documentation.
+Each play targets its own inventory group.
 
-For example, to automate AWS resources, you can use the `amazon.aws` collection.
+Correction to the lecture: The instructor suggested that the `ansible-playbook` command takes only one playbook. Current Ansible CLI documentation supports passing multiple playbook files as arguments. However, combining related plays into one playbook is often a clearer approach when they form one workflow.&#x20;
 
-Install it:
+[image](https://www.google.com/s2/favicons?domain=https://docs.ansible.com\&sz=32)
 
-```
-ansible-galaxy collection install amazon.aws
-```
+Ansible Core Documentation
 
-Some AWS modules also require dependencies such as the AWS SDK for Python (`boto3`) and valid AWS credentials.
 
-### Does Ansible need a special module for everything?
 
-No.
+## 11. Important commands from this session
 
-Consider these examples:
+| Command                                               | Purpose                        |
+| ----------------------------------------------------- | ------------------------------ |
+| `ansible --version`                                   | Check Ansible version          |
+| `ansible-inventory --list`                            | Display inventory              |
+| `ansible-inventory --graph`                           | Display inventory groups       |
+| `ansible all -m ping`                                 | Test host connectivity         |
+| `ssh-keygen -t ed25519`                               | Generate an SSH key pair       |
+| `ssh-copy-id user@host`                               | Copy public key to remote host |
+| `ssh user@host`                                       | Test SSH connectivity          |
+| `ansible-playbook -i inventory.ini playbook.yml`      | Execute playbook               |
+| `ansible-playbook --syntax-check playbook.yml`        | Validate playbook syntax       |
+| `ansible-playbook -i inventory.ini playbook.yml -vvv` | Execute with detailed logs     |
+| `ansible-doc ansible.builtin.apt`                     | View module documentation      |
+| `ansible-galaxy collection install amazon.aws`        | Install AWS collection         |
 
-- Restart Jenkins service → Use the service module.
-- Create a Jenkins configuration file → Use the copy or template module.
-- Run a `kubectl` command → Use the command or shell module.
-- Create an AWS VPC → Use an appropriate AWS collection module.
+## 12. Quick revision
 
-Remember: If an operation can be performed through an existing module or command, you may not need an additional collection. Specialized integrations may require additional modules or collections.
+| Concept                        | Remember this                                                |
+| ------------------------------ | ------------------------------------------------------------ |
+| Ad-hoc command                 | One-time task from terminal                                  |
+| Playbook                       | YAML automation file                                         |
+| Inventory                      | List of servers to manage                                    |
+| `-i`                           | Specifies inventory                                          |
+| Play                           | Tasks associated with selected hosts                         |
+| Task                           | Calls a module                                               |
+| Module                         | Performs an operation                                        |
+| `become: true`                 | Enables privilege escalation                                 |
+| SSH                            | Connects Ansible to Linux managed nodes                      |
+| `authorized_keys`              | Stores accepted public keys                                  |
+| `ansible_user`                 | Defines remote login username                                |
+| `ansible_ssh_private_key_file` | Defines SSH private key path                                 |
+| `apt`                          | Manages Ubuntu/Debian packages                               |
+| `service`                      | Manages services                                             |
+| `changed`                      | Ansible made a change                                        |
+| `ok`                           | No change required                                           |
+| Collection                     | Packages Ansible modules, plugins, roles and related content |
 
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+## 13. Interview questions
 
-GitHub
+1. What is the difference between an ad-hoc command and a playbook?
+2. What is an inventory file, and why do we need it?
+3. Can we create multiple inventory files?
+4. What is the difference between a play and a task?
+5. Can one playbook contain multiple plays?
+6. Why is YAML indentation important?
+7. How do you validate an Ansible playbook?
+8. How does Ansible connect to remote EC2 instances?
+9. How do you configure passwordless SSH authentication?
+10. What is the purpose of `authorized_keys`?
+11. What is `become: true`?
+12. How do you install NGINX using Ansible?
+13. What is the difference between `command` and `shell` modules?
+14. What is the difference between a module and a collection?
+15. How can Ansible configure Jenkins?
+16. How do you troubleshoot an unreachable managed node?
 
-## 13. Quick Revision — Interview Questions
+## 14. The mental model
 
-| Question                                        | Answer                                                                 |
-| ----------------------------------------------- | ---------------------------------------------------------------------- |
-| What is an inventory file?                      | Contains the managed hosts or sources from which hosts are discovered. |
-| Can we create multiple inventory files?         | Yes, and select one using `-i`.                                        |
-| What is the purpose of `-i`?                    | Specifies the inventory source.                                        |
-| What is a play?                                 | A set of tasks applied to selected hosts.                              |
-| Can a playbook have multiple plays?             | Yes.                                                                   |
-| What is `become: true`?                         | Enables privilege escalation, usually through sudo.                    |
-| How does Ansible connect to Linux servers?      | Usually through SSH.                                                   |
-| What is `ssh-copy-id`?                          | Copies a public key to a remote user's authorized keys.                |
-| How do you validate playbook syntax?            | `ansible-playbook --syntax-check`.                                     |
-| What is the APT module used for?                | Managing packages on Debian-based systems.                             |
-| What does `state: present` mean?                | Ensure the package or resource exists.                                 |
-| What does `state: started` mean?                | Ensure the service is running.                                         |
-| What does `-vvv` do?                            | Provides detailed debugging output.                                    |
-| What is a collection?                           | A package of Ansible modules, plugins, roles and related content.      |
-| How can one playbook manage web and DB servers? | Define separate plays with different host groups.                      |
+Inventory
 
-## 14. Mental Model — Remember This Workflow
+Where are my servers?
 
-## Ansible execution workflow
+SSH authentication
 
-1. Inventory — Identify the servers.
-2. SSH — Establish secure connectivity.
-3. Playbook — Define what needs to be configured.
-4. Tasks and Modules — Perform the operations.
-5. Become — Obtain required privileges.
-6. Execution — Apply the desired configuration.
-7. Result — Check `ok`, `changed` or `failed`.
+Can I securely connect?
+
+Playbook
+
+What should I configure?
+
+Tasks and modules
+
+Perform the required operations
+
+Configured remote servers
+
+Desired state achieved
+
+One-line summary: Inventory identifies the servers, SSH connects to them, and playbooks use modules to configure them.
 
 Original transcript: [DevOps Session — 31 October 2026](https://github.com/jeevanadv2000-pixel/python/blob/main/DevOps%20Session\(Morning\)%20transcript_2026-10-31_09.29.29.txt?utm_source=chatgpt.com)
 
-Session complete: You have now covered Ansible playbooks, inventory files, SSH authentication, remote server configuration, privilege escalation and modules.
+Session complete
 
-The next useful hands-on exercise is to connect your existing Amazon Linux EC2 control node to a second EC2 instance and deploy NGINX using an Ansible playbook.
+These notes cover the demonstrations and questions from the session, including the SSH troubleshooting exercise and the successful NGINX installation.

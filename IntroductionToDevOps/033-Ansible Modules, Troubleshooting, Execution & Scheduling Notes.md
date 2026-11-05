@@ -1,33 +1,36 @@
-# DevOps Session — Ansible Modules, Troubleshooting, Execution & Scheduling Notes
+# DevOps Session — Ansible Modules, Troubleshooting and Automation
 
-Date: 1 November 2026\
-Instructor: Rochak Agrawal\
-Focus: Ansible ad-hoc commands, commonly used modules, task execution results, dry runs, SSH troubleshooting, privilege escalation, inventory management, scheduling and Linux load average.
+Date: 1 November 2026 · Instructor: Rochak Agrawal
 
-Notes are condensed from the complete transcript. Participant discussions have been removed, speech-to-text errors corrected and technical inaccuracies clarified.
+Topics: Common Ansible modules, task execution statuses, check mode, diff mode, forks, SSH troubleshooting, privilege escalation, Python dependencies, inventory commands, package installation, Git version control, cron scheduling, Ansible Automation Controller and Linux uptime/load average.
 
-## 1. Commonly Used Ansible Modules
+I’ve corrected speech-to-text errors such as “Ensemble” to Ansible, “Pink” to ping, “folks” to forks, “Chrome tab” to crontab, and “known host” to known_hosts. I’ve also clarified a few important technical distinctions, particularly `ignored` vs `rescued`, Ansible's ping module and Linux load average.
 
-The session started with practical demonstrations of commonly used Ansible modules.
+## 1. Common Ansible modules
 
-| Module    | Purpose                                      | Example use                           |
-| --------- | -------------------------------------------- | ------------------------------------- |
-| `ping`    | Test Ansible connectivity                    | Check whether a managed host responds |
-| `command` | Execute a command without shell processing   | Run `free -h`                         |
-| `shell`   | Execute commands through a shell             | Use pipes, redirects and variables    |
-| `copy`    | Copy files from control node to managed node | Transfer configuration files          |
-| `file`    | Manage files, directories and permissions    | Create directories                    |
-| `apt`     | Manage Debian/Ubuntu packages                | Install NGINX                         |
-| `service` | Manage services                              | Start or stop NGINX                   |
-| `user`    | Manage user accounts                         | Create or delete users                |
+The instructor demonstrated several modules commonly used in day-to-day server administration.
 
-### Ansible ping module
+| Module    | Purpose                                         | Example use                                     |
+| --------- | ----------------------------------------------- | ----------------------------------------------- |
+| `ping`    | Tests Ansible connectivity and module execution | Check whether a host is reachable               |
+| `command` | Runs a command without a shell                  | Check memory or uptime                          |
+| `shell`   | Runs commands through a shell                   | Use pipes, redirection and variables            |
+| `copy`    | Copies files from control node to managed node  | Transfer configuration files                    |
+| `file`    | Manages files, directories and permissions      | Create directories, change ownership            |
+| `apt`     | Manages Debian/Ubuntu packages                  | Install NGINX                                   |
+| `service` | Manages services                                | Start or stop NGINX                             |
+| `user`    | Manages user accounts                           | Create or delete users                          |
+| `package` | Generic package-management interface            | Install packages across supported distributions |
+
+### 1.1 Ping module
+
+The Ansible ping module checks whether Ansible can connect to the managed host and execute its module successfully.
 
 ```
 ansible all -i inventory.ini -m ansible.builtin.ping
 ```
 
-Expected successful response:
+Successful output typically includes:
 
 ```
 web1 | SUCCESS => {
@@ -36,52 +39,56 @@ web1 | SUCCESS => {
 }
 ```
 
-Important: Ansible's `ping` module does not use ICMP like the Linux `ping` command. It checks whether Ansible can connect to the host and execute its module.
 
-### Command vs Shell module
+
+PONG
+
+&#x20;means Ansible successfully communicated with the host.
+
+
+
+If a host cannot be reached, the output reports an unreachable error.
+
+Important: Ansible's `ping` module is not the same as the Linux ICMP `ping` command. It tests Ansible connectivity and execution, not simply network packet reachability.
+
+### 1.2 Command module vs shell module
 
 This is an important interview topic.
 
-Command module:
+\| Feature | `command` | `shell` |\
+\|---|---|---|\
+\| Executes commands | Yes | Yes |\
+\| Uses shell interpreter | No | Yes |\
+\| Pipes (`|`) | No | Yes |\
+\| Redirection (`>`, `>>`) | No | Yes |\
+\| Shell variables and expansion | No shell expansion | Yes |\
+\| Recommended default | Yes, when sufficient | Only when shell features are required |
+
+Using command:
 
 ```
-ansible all -i inventory.ini \
+ansible webservers -i inventory.ini \
   -m ansible.builtin.command \
   -a "free -h"
 ```
 
-Use it for ordinary commands that do not require shell features.
+This executes `free -h` on the managed server and returns its memory information.
 
-Shell module:
+Using shell:
 
 ```
-ansible all -i inventory.ini \
+ansible webservers -i inventory.ini \
   -m ansible.builtin.shell \
   -a "ps aux | grep nginx"
 ```
 
-Use it when you need:
+The pipe works because the shell interprets it.
 
-- Pipes (`|`)
-- Redirection (`>` or `>>`)
-- Shell variables
-- Shell operators
+Best practice: Prefer `command` when possible. Use `shell` only when you genuinely need shell functionality.
 
-| Command                            | Shell                   |
-| ---------------------------------- | ----------------------- |
-| Does not invoke a shell by default | Invokes a shell         |
-| Safer for simple commands          | Supports shell features |
-| Preferred when sufficient          | Use only when necessary |
+### 1.3 Copy module
 
-Best practice: Prefer `command` over `shell` unless you specifically need shell functionality.
-
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
-
-GitHub+1
-
-## 2. Copy Module — Transfer Files to Remote Servers
-
-The instructor demonstrated transferring a file from the control node to a managed node.
+The copy module transfers a file from the Ansible control node to a managed node.
 
 ```
 ansible webservers -i inventory.ini \
@@ -89,62 +96,88 @@ ansible webservers -i inventory.ini \
   -a "src=copy.txt dest=/tmp/copy.txt"
 ```
 
-Here:
+Remember:
 
-| Parameter | Meaning                              |
-| --------- | ------------------------------------ |
-| `src`     | Source file on the control node      |
-| `dest`    | Destination path on the managed node |
+- `src` — source file on the control node.
+- `dest` — destination path on the managed node.
 
-The copy module is useful for transferring configuration files, scripts and application-related files.
+### 1.4 File, apt, service and user modules
 
-Remember: The source is normally on the control node; the destination is on the managed node.
+Examples:
+
+```
+# Create a directory
+- name: Create application directory
+  ansible.builtin.file:
+    path: /opt/myapp
+    state: directory
+    mode: "0755"
+
+# Install NGINX
+- name: Install NGINX
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+
+# Start NGINX
+- name: Start NGINX
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
+
+# Create a user
+- name: Create deployment user
+  ansible.builtin.user:
+    name: deploy
+    state: present
+```
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
-GitHub
+GitHub+1
 
-## 3. Understanding Ansible Task Results
+## 2. Ansible task execution statuses
 
-When you execute an Ansible command or playbook, you see different statuses.
+When you run an Ansible playbook, each task returns a status. These statuses tell you what happened on the managed host.
 
-| Status        | Meaning                               | Example                             |
-| ------------- | ------------------------------------- | ----------------------------------- |
-| `ok`          | Desired state already exists          | NGINX is already installed          |
-| `changed`     | System was modified                   | NGINX was installed                 |
-| `failed`      | Task execution failed                 | Invalid destination path            |
-| `unreachable` | Ansible cannot connect                | SSH timeout                         |
-| `skipped`     | Task condition was not satisfied      | Dev-only task skipped on production |
-| `ignored`     | Failure was explicitly ignored        | Task uses `ignore_errors: true`     |
-| `rescued`     | Failure was handled by a rescue block | Recovery task executed              |
+| Status        | Meaning                                                 | Example                               |
+| ------------- | ------------------------------------------------------- | ------------------------------------- |
+| `ok`          | Task succeeded; no change was required                  | NGINX is already installed            |
+| `changed`     | Task succeeded and changed something                    | NGINX was installed                   |
+| `failed`      | Task execution failed                                   | Invalid file path or package error    |
+| `unreachable` | Ansible could not connect to the host                   | SSH timeout                           |
+| `skipped`     | Task was not executed because its condition was not met | A `when` condition evaluated to false |
+| `ignored`     | A failure was allowed to continue using `ignore_errors` | An expected non-critical task failure |
+| `rescued`     | A failure was handled by a `rescue` block               | Recovery task ran after a failure     |
 
-### Understand `ok` and `changed`
+### 2.1 `ok` vs `changed`
 
 Suppose your playbook installs NGINX.
 
-First execution:
+First run:
 
 ```
 TASK [Install NGINX]
 changed: [web1]
 ```
 
-NGINX was not installed, so Ansible installed it.
+NGINX was missing, so Ansible installed it.
 
-Second execution:
+Second run:
 
 ```
 TASK [Install NGINX]
 ok: [web1]
 ```
 
-NGINX is already installed, so Ansible does not need to change anything.
+NGINX already exists, so no change was necessary.
 
-This demonstrates idempotency.
+This is an example of idempotency.
 
-### What is skipped?
+### 2.2 Skipped status
 
-You can use conditions to execute tasks only in specific environments.
+A task can be skipped when a condition is not satisfied.
 
 Example:
 
@@ -153,119 +186,169 @@ Example:
   ansible.builtin.user:
     name: devuser
     state: present
-  when: "'dev' in group_names"
+  when: environment == "dev"
 ```
 
-This task runs only on hosts belonging to the `dev` group. On other hosts, it is skipped.
+If `environment` is `prod`, this task is skipped.
 
-### What is ignored?
+### 2.3 Ignored vs rescued — important distinction
 
-Sometimes you deliberately allow a task failure without stopping the play.
+The instructor discussed these statuses together, but they are not interchangeable.
+
+Ignored failure:
 
 ```
-- name: Run optional health check
-  ansible.builtin.command: /usr/local/bin/health-check
+- name: Check application endpoint
+  ansible.builtin.command:
+    cmd: curl -f http://localhost:8080
+  register: health_check
   ignore_errors: true
 ```
 
-The play continues even if the task fails.
+If the command fails, Ansible records the failure as ignored and continues to subsequent tasks.
 
-Warning: Do not ignore errors simply to make a playbook appear successful. Investigate the failure and ignore it only when the failure is genuinely acceptable.
-
-### What is rescued?
-
-Ansible also supports error handling using `block`, `rescue` and `always`.
+Rescued failure:
 
 ```
 - name: Application deployment
   block:
-    - name: Deploy application
-      ansible.builtin.command: /opt/deploy.sh
+    - name: Run deployment
+      ansible.builtin.command:
+        cmd: /opt/myapp/deploy.sh
 
   rescue:
-    - name: Record deployment failure
+    - name: Report deployment failure
       ansible.builtin.debug:
-        msg: "Deployment failed. Recovery is required."
+        msg: "Deployment failed. Recovery actions are running."
 
   always:
-    - name: Display completion message
+    - name: Deployment cleanup
       ansible.builtin.debug:
-        msg: "Deployment attempt finished."
+        msg: "Cleanup step executed."
 ```
 
-- `block`: Main operations.
-- `rescue`: Runs when a task in the block fails.
-- `always`: Runs regardless of success or failure.
+Here:
 
-Technical distinction: `ignored` and `rescued` are not interchangeable. `ignore_errors` ignores an eligible task failure; `rescue` executes recovery logic for a failed block.
+- `block` contains the main tasks.
+- `rescue` runs when a task in the block fails.
+- `always` runs after the block/rescue processing, whether the block succeeds or fails.
+
+How failure handling works
+
+Execute task
+
+Success
+
+Continue normally
+
+Failure
+
+Handle the error
+
+Rescue block (if configured)
+
+Always block (if configured)
+
+Real-world example from the lecture: NGINX may install and start successfully, but an HTTP check may fail because the AWS security group does not allow port 80. If that failure is expected, you may choose to handle it. However, ignoring the failure does not fix the security group or make the application accessible.
+
+Important: Do not blindly ignore failures. Investigate why they occurred and decide whether they are genuinely acceptable.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+1
 
-## 4. Dry Run — Check Before Applying Changes
+## 3. Syntax check, dry run and diff mode
 
-What if you want to know what a playbook will do without actually changing the server?
+Before making changes to servers, Ansible provides ways to inspect what a playbook is expected to do.
 
-Ansible provides check mode, also called dry-run mode.
+| Option              | Purpose                                               |
+| ------------------- | ----------------------------------------------------- |
+| `--syntax-check`    | Checks playbook syntax                                |
+| `--check`           | Runs in check mode to predict changes                 |
+| `--diff`            | Shows differences for supported file/template changes |
+| `-v`, `-vv`, `-vvv` | Increases output verbosity                            |
 
-```
-ansible-playbook -i inventory.ini nginx.yml --check
-```
-
-This predicts changes where supported by the modules.
-
-### Difference between normal execution and dry run
-
-| Normal execution            | Dry run                          |
-| --------------------------- | -------------------------------- |
-| Executes tasks              | Simulates supported changes      |
-| Modifies the managed system | Normally avoids applying changes |
-| Shows actual results        | Shows predicted results          |
-
-### View configuration differences
-
-Use `--diff`:
+### Syntax check
 
 ```
-ansible-playbook -i inventory.ini nginx.yml --diff
+ansible-playbook -i inventory.ini site.yml --syntax-check
 ```
 
-Combine both:
+This checks whether the playbook is syntactically valid. It does not execute the tasks.
+
+### Dry run / check mode
 
 ```
-ansible-playbook -i inventory.ini nginx.yml --check --diff
+ansible-playbook -i inventory.ini site.yml --check
 ```
 
-This helps preview changes to files and templates.
+Check mode attempts to predict changes without applying them.
 
-Important: Check mode is not a perfect simulation. Some modules do not fully support it, and tasks dependent on previous changes may not behave exactly as they would during a normal run.
+Example:
 
-### Syntax check vs Dry run
+Suppose your playbook copies a file from the control node to a managed node.
 
-| Command             | Purpose                                 |
-| ------------------- | --------------------------------------- |
-| `--syntax-check`    | Checks playbook syntax                  |
-| `--check`           | Predicts supported changes              |
-| `--diff`            | Displays file/configuration differences |
-| `-v`, `-vv`, `-vvv` | Increases execution detail              |
+```
+- name: Copy configuration
+  ansible.builtin.copy:
+    src: app.conf
+    dest: /tmp/app.conf
+```
+
+With `--check`, Ansible can report that the file would be changed without actually copying it.
+
+### Diff mode
+
+```
+ansible-playbook -i inventory.ini site.yml --check --diff
+```
+
+This attempts to show what content would change.
+
+You can also run:
+
+```
+ansible-playbook -i inventory.ini site.yml --diff
+```
+
+This executes the playbook and displays differences for supported modules.
+
+Check mode vs diff mode
+
+`--check`
+
+What would change?
+
+`--diff`
+
+What content differs?
+
+Important limitations:
+
+- Check mode is a simulation, not a guarantee that the actual run will succeed.
+- Some modules do not fully support check mode.
+- Tasks depending on registered results from earlier tasks may behave differently in check mode.
+- Diff output may expose sensitive information. Use `no_log: true` for tasks handling secrets when appropriate.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+1
 
-## 5. Forks — Parallel Execution
+## 4. Forks — parallel execution
 
-Ansible can execute tasks on multiple managed nodes simultaneously.
+Ansible can manage multiple servers simultaneously.
 
-The setting controlling parallel execution is called forks.
+The `forks` setting controls how many hosts Ansible can process concurrently.
 
 Default: 5
 
-Suppose you have 20 servers.
+Example:
 
-- With 5 forks, Ansible can process up to 5 hosts concurrently.
-- With 10 forks, it can process up to 10 hosts concurrently.
+Suppose you have 100 servers.
+
+- With 5 forks, Ansible processes up to 5 hosts concurrently.
+- With 10 forks, Ansible can process up to 10 hosts concurrently.
+- With 20 forks, Ansible can process up to 20 hosts concurrently.
 
 ### Configure forks permanently
 
@@ -279,133 +362,135 @@ forks = 10
 ### Configure forks for one execution
 
 ```
-ansible-playbook -i inventory.ini nginx.yml -f 10
+ansible-playbook -i inventory.ini site.yml -f 10
 ```
 
-### What determines the appropriate fork value?
+### How it works
 
-- Number of managed servers.
-- Control node CPU and memory.
-- Network capacity.
-- Complexity of tasks.
-- Resource consumption of the playbook.
+100 managed servers
 
-Increasing forks does not always make execution faster. A small control node running resource-intensive tasks may struggle with too many parallel processes.
+Ansible control node
+
+forks = 5
+
+Host 1
+
+Host 2
+
+Host 3
+
+Host 4
+
+Host 5
+
+Up to 5 hosts processed concurrently in this batch
+
+Next batch of hosts
+
+### How should you choose the forks value?
+
+The instructor highlighted two considerations:
+
+1. What work is the playbook performing?
+2. What is the capacity of the Ansible control node?
+
+For example:
+
+- Copying a small file is a lightweight operation.
+- Installing packages on many servers may consume more resources.
+- Running complex automation on 100 servers simultaneously can overload a small control node.
+
+Remember: More forks can improve parallelism, but they also increase resource consumption. Also, forks control concurrency, not the total number of servers Ansible can manage.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
-GitHub+1
+GitHub
 
-## 6. SSH Troubleshooting
+## 5. Common Ansible troubleshooting errors
 
-The instructor revisited the SSH errors encountered while connecting the control node to remote EC2 instances.
+The instructor revisited several errors from the previous practical session.
 
-### Common SSH errors
+| Error                           | Likely cause                          | What to check                     |
+| ------------------------------- | ------------------------------------- | --------------------------------- |
+| `Permission denied (publickey)` | Incorrect or missing SSH key          | Username, public key, private key |
+| `Host key verification failed`  | Host identity not trusted             | `known_hosts`                     |
+| `Missing sudo password`         | Privilege escalation needs a password | Sudo permissions and `-K`         |
+| `Python not found`              | Python missing on managed node        | Install Python or bootstrap it    |
+| `No hosts matched`              | Incorrect inventory group/pattern     | Inventory group name              |
+| `Connection timed out`          | Network or firewall issue             | Security group, port 22, routing  |
+| `ansible: command not found`    | Ansible not installed or not on PATH  | Installation and PATH             |
 
-| Error                         | Possible cause                                  | What to check                       |
-| ----------------------------- | ----------------------------------------------- | ----------------------------------- |
-| Permission denied (publickey) | Wrong key or username                           | SSH key and remote user             |
-| Host key verification failed  | Host is not trusted                             | `known_hosts`                       |
-| Connection timed out          | Network or firewall issue                       | Security group, routing and port 22 |
-| Missing sudo password         | User cannot escalate or password is unavailable | Sudo permissions and authentication |
-| Python not found              | Python unavailable on managed node              | Python installation and interpreter |
-| No host matched               | Incorrect inventory group                       | Inventory and host pattern          |
+### 5.1 Permission denied (publickey)
 
-### Error 1: Permission denied (publickey)
+Possible reasons:
 
-Check:
+- Public key was not copied to the remote server.
+- Wrong SSH username.
+- Wrong private key.
+- Incorrect SSH file permissions.
+- SSH key format or compatibility problem.
 
-1. Is the public key installed on the managed node?
-2. Are you using the correct SSH username?
-3. Does the private key match the public key?
-4. Are SSH file permissions correct?
-5. Is the private key in a supported format?
+Test manually:
 
-### Error 2: Host key verification failed
+```
+ssh -i ~/.ssh/id_ed25519 ubuntu@172.31.10.20
+```
 
-SSH maintains a file called:
+### 5.2 Host key verification failed
+
+SSH uses a `known_hosts` file to remember the identity of previously contacted servers.
+
+Common location:
 
 ```
 ~/.ssh/known_hosts
 ```
 
-It stores the identities of previously trusted SSH servers.
-
-Connect once interactively and verify the host fingerprint:
+Connect manually once:
 
 ```
-ssh ubuntu@MANAGED_SERVER_IP
+ssh ubuntu@172.31.10.20
 ```
 
-If the fingerprint is correct, accept it. For managed automation environments, you can also populate `known_hosts` through a controlled process.
+Review the host fingerprint and accept it only if you have verified that it belongs to the intended server.
 
-Avoid disabling host-key verification as a permanent workaround because it weakens protection against server impersonation.
-
-### Error 3: Connection timed out
-
-For AWS EC2, verify:
-
-- SSH is running on the destination.
-- Security group allows inbound TCP port 22 from the control node.
-- Network ACLs and routes permit communication.
-- The control node can reach the destination IP.
-
-[Installing Jenkins on AWS EC2](https://images.openai.com/static-rsc-4/YF7TrSCtkM84EgvmCNIHhqgA8vH8H8p2ypiB21QiDVZ7MK7d-DlBbjlgTxQfkGhOOOpxOYbtPVYxRJ_xd8Tptvs7XXjATkRjVXel06b110u5KQWChr__FSwJAme1hFftBknwKDKJbQ5qii7-ysKUctsrxCmK5ioLSHgNeI4BTKg?purpose=inline)
-
-[cloudzenia.com](https://cloudzenia.com/blog/installing-jenkins-on-aws-ec2/?utm_source=chatgpt.com)
-
-The instructor demonstrated that removing the security group rule for port 22 caused Ansible connectivity to fail. Restoring the rule fixed the issue.
-
-### Error 4: Missing sudo password
-
-The SSH user may connect successfully but may not have permission to become root.
-
-Check whether the user has appropriate sudo permissions.
-
-On Linux, sudo access is controlled through `/etc/sudoers` and configuration files under `/etc/sudoers.d/`.
-
-Use:
+If a server was legitimately rebuilt and its host key changed, remove the stale entry and verify the new fingerprint before accepting it:
 
 ```
-sudo visudo
+ssh-keygen -R 172.31.10.20
 ```
 
-Do not casually edit `/etc/sudoers` using a normal text editor. `visudo` validates the syntax before saving.
+Security warning: Do not permanently disable host key checking merely to avoid this error. Host key verification helps protect against connecting to an impersonated server.
 
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+### 5.3 Missing sudo password
 
-GitHub+3
+This is related to Linux privilege escalation.
 
-## 7. Privilege Escalation — `become`
+Ansible connects using the normal remote user, such as `ubuntu`. That user must be authorized to run the required commands with sudo.
 
-Ansible normally connects using the configured SSH user.
-
-For example:
+Ansible supports:
 
 ```
-ubuntu@192.168.1.10
+ansible-playbook -i inventory.ini site.yml -b
 ```
 
-But this user may not have permission to install packages or modify protected system directories.
+Here:
 
-Ansible provides privilege escalation.
+- `-b` means become.
+- It requests privilege escalation, usually using sudo.
 
-### Ad-hoc command
-
-```
-ansible webservers -i inventory.ini \
-  -m ansible.builtin.command \
-  -a "whoami" \
-  -b
-```
-
-The `-b` flag enables privilege escalation, usually through sudo.
-
-### Playbook
+If a sudo password is required:
 
 ```
----
-- name: Install NGINX
+ansible-playbook -i inventory.ini site.yml -b -K
+```
+
+`-K` prompts for the become password.
+
+In a playbook:
+
+```
+- name: Configure web servers
   hosts: webservers
   become: true
 
@@ -416,277 +501,347 @@ The `-b` flag enables privilege escalation, usually through sudo.
         state: present
 ```
 
-### What if sudo requires a password?
+Important: `become: true` does not grant a user sudo permission. The remote account must already be authorized to escalate privileges. If it cannot use sudo, you need to fix the server's sudo configuration or use an appropriately authorized account.
 
-Use:
+### 5.4 Python not found
 
-```
-ansible-playbook -i inventory.ini nginx.yml --ask-become-pass
-```
+Most Ansible POSIX modules require Python on the managed node.
 
-Or:
-
-```
-ansible-playbook -i inventory.ini nginx.yml -K
-```
-
-`become` does not automatically grant privileges. The remote user must be authorized to use sudo.
-
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
-
-GitHub+1
-
-## 8. Python Requirement on Managed Nodes
-
-Ansible is written in Python, and most Ansible modules require Python on the managed node.
-
-The control node and managed node have different requirements:
-
-| Machine            | Requirement                                    |
-| ------------------ | ---------------------------------------------- |
-| Control node       | Ansible and its dependencies                   |
-| Managed Linux node | Python for most modules, plus SSH connectivity |
-
-Some cloud images already have Python installed. Others may not.
-
-Check the managed node:
+Check:
 
 ```
 python3 --version
 ```
 
-If missing, install it using the operating system's package manager.
+If missing, install Python using the operating system's package manager or bootstrap it using Ansible's `raw` module, which does not require Python on the target.
 
-For example, Ubuntu:
-
-```
-sudo apt update
-sudo apt install python3 -y
-```
-
-For Amazon Linux 2023:
+Example for Ubuntu:
 
 ```
-sudo dnf install python3 -y
+ansible webservers -i inventory.ini \
+  -m ansible.builtin.raw \
+  -a "sudo apt-get update && sudo apt-get install -y python3"
 ```
 
-Important: Not every Ansible operation requires Python on the managed node. However, most standard modules do. Ansible has special raw execution capabilities that can help bootstrap Python on a host where it is missing.
+### 5.5 No hosts matched
+
+Suppose your inventory contains:
+
+```
+[webservers]
+172.31.10.20
+```
+
+But your playbook contains:
+
+```
+hosts: webserver
+```
+
+The group names do not match.
+
+Correct it:
+
+```
+hosts: webservers
+```
+
+### 5.6 Connection timed out
+
+The instructor demonstrated this by changing the EC2 security group and removing the SSH rule.
+
+Ansible could no longer connect to the server.
+
+For Linux EC2 servers, ensure:
+
+- Inbound TCP port 22 is allowed from the control node.
+- The control node can reach the managed node.
+- Network ACLs and routing permit the connection.
+- The correct IP address is used.
+
+SSH connectivity checklist
+
+1\. Correct IP address?
+
+2\. Correct SSH username and key?
+
+3\. TCP port 22 allowed?
+
+4\. Routing and network ACLs correct?
+
+5\. Host key verified?
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+1
 
-## 9. Inventory Management — List Hosts and Groups
+## 6. Inventory troubleshooting and useful commands
 
-The instructor demonstrated how to inspect inventory information.
+The instructor demonstrated how to inspect an inventory and visualize its groups.
 
-### List all hosts
-
-```
-ansible-inventory -i inventory.ini --list
-```
-
-### Display inventory hierarchy
-
-```
-ansible-inventory -i inventory.ini --graph
-```
-
-The graph helps you understand how servers are organized into groups and subgroups.
-
-Example inventory:
-
-```
-[web_staging]
-web1 ansible_host=192.168.1.10
-
-[web_production]
-web2 ansible_host=192.168.1.11
-
-[webservers:children]
-web_staging
-web_production
-
-[dbservers]
-db1 ansible_host=192.168.1.20
-```
-
-Visual structure:
-
-\#chatgpt-mermaid-\_r_for\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_for\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_for\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_for\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_for\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_for\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_for\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_for\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_for\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_for\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_for\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_for\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_for\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_for\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_for\_ p{margin:0;}#chatgpt-mermaid-\_r_for\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_for\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_for\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_for\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_for\_ .label text,#chatgpt-mermaid-\_r_for\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_for\_ .node rect,#chatgpt-mermaid-\_r_for\_ .node circle,#chatgpt-mermaid-\_r_for\_ .node ellipse,#chatgpt-mermaid-\_r_for\_ .node polygon,#chatgpt-mermaid-\_r_for\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_for\_ .rough-node .label text,#chatgpt-mermaid-\_r_for\_ .node .label text,#chatgpt-mermaid-\_r_for\_ .image-shape .label,#chatgpt-mermaid-\_r_for\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_for\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_for\_ .rough-node .label,#chatgpt-mermaid-\_r_for\_ .node .label,#chatgpt-mermaid-\_r_for\_ .image-shape .label,#chatgpt-mermaid-\_r_for\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_for\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_for\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_for\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_for\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_for\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_for\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_for\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_for\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_for\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_for\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_for\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_for\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_for\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_for\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_for\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_for\_ .icon-shape,#chatgpt-mermaid-\_r_for\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_for\_ .icon-shape p,#chatgpt-mermaid-\_r_for\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_for\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_for\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_for\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_for\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_for\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_for\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_for\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_for\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_for\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_for\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_for\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_for\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_for\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_for\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_for\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_for\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_for\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_for\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_for\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_for\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_for\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_for\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_for\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_for\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_for\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_for\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_for\_ .node rect,#chatgpt-mermaid-\_r_for\_ .node circle,#chatgpt-mermaid-\_r_for\_ .node ellipse,#chatgpt-mermaid-\_r_for\_ .node polygon,#chatgpt-mermaid-\_r_for\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_for\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_for\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_for\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_for\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_for\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}allwebserversdbserversweb_stagingweb_productionweb1web2db1
-
-### List hosts matching a pattern
+### 6.1 List hosts matching a pattern
 
 ```
 ansible webservers -i inventory.ini --list-hosts
 ```
 
-This is useful before running a playbook because you can confirm which machines Ansible will target.
+This shows which hosts Ansible will target.
 
-Common mistake: If your inventory group is named `webservers` but your playbook specifies `webserver`, Ansible will not find the expected hosts.
+To list all hosts:
+
+```
+ansible all -i inventory.ini --list-hosts
+```
+
+This is useful when you get:
+
+```
+Could not match supplied host pattern
+```
+
+### 6.2 Display inventory in JSON
+
+```
+ansible-inventory -i inventory.ini --list
+```
+
+Displays the inventory structure and host variables.
+
+### 6.3 Display inventory as a graph
+
+```
+ansible-inventory -i inventory.ini --graph
+```
+
+Example inventory:
+
+```
+[webservers:children]
+web_staging
+web_production
+
+[web_staging]
+web1.example.com
+
+[web_production]
+web2.example.com
+
+[dbservers]
+db1.example.com
+```
+
+The graph helps you understand parent groups, child groups and hosts.
+
+Inventory group structure
+
+all
+
+webservers
+
+web_staging
+
+web1.example.com
+
+web_production
+
+web2.example.com
+
+dbservers
+
+db1.example.com
+
+### Three useful inventory commands
+
+| Command                     | What it shows            |
+| --------------------------- | ------------------------ |
+| `ansible-inventory --list`  | Inventory in JSON        |
+| `ansible-inventory --graph` | Group hierarchy          |
+| `ansible ... --list-hosts`  | Hosts matching a pattern |
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
-GitHub+1
+GitHub
 
-## 10. Installing Ansible — APT vs PIP vs PIPX
+## 7. Installing Ansible — APT vs DNF vs PIP vs PIPX
 
-The instructor discussed different methods of installing Ansible.
+The instructor explained why Ansible was installed using APT during the practical session and why PIP is another option.
 
-| Method  | Purpose                                                            |
-| ------- | ------------------------------------------------------------------ |
-| APT     | Ubuntu/Debian system package manager                               |
-| DNF/YUM | Fedora, RHEL-family and related distributions                      |
-| PIP     | Python package installer                                           |
-| PIPX    | Installs Python command-line applications in isolated environments |
+### Understand the package managers
 
-### Install through APT
+| Package manager | Used for                                                               |
+| --------------- | ---------------------------------------------------------------------- |
+| APT             | Debian/Ubuntu system packages                                          |
+| DNF             | Fedora and modern RHEL-family systems, including Amazon Linux 2023     |
+| YUM             | Older RHEL/CentOS systems; compatibility command on some newer systems |
+| PIP             | Python packages                                                        |
+| PIPX            | Python command-line applications installed in isolated environments    |
+
+### APT installation
+
+On Ubuntu:
 
 ```
 sudo apt update
 sudo apt install ansible -y
 ```
 
-### Install through DNF
+### DNF installation
+
+On Amazon Linux 2023, Ansible may be available through configured repositories:
 
 ```
 sudo dnf install ansible -y
 ```
 
-### Install through PIPX
+Package availability depends on the enabled repositories.
+
+### PIP installation
+
+PIP is Python's package installer. It can install Python packages, including Ansible.
+
+However, modern Linux distributions may mark their system Python installation as an externally managed environment. Installing packages directly into it with PIP can cause conflicts with system-managed packages.
+
+A safer approach is to use a virtual environment:
 
 ```
+python3 -m venv ~/ansible-venv
+
+source ~/ansible-venv/bin/activate
+
+python -m pip install --upgrade pip
+
+python -m pip install ansible
+```
+
+### PIPX installation
+
+PIPX installs Python command-line applications in isolated environments.
+
+Conceptually:
+
+System Python
+
+PIP
+
+Installs packages into a selected Python environment
+
+PIPX
+
+Isolates Python CLI applications
+
+A common PIPX installation workflow on Ubuntu is:
+
+```
+sudo apt update
+sudo apt install pipx -y
+
+pipx ensurepath
+
 pipx install --include-deps ansible
 ```
 
-### Why use PIPX?
+You may need to open a new terminal or reload your shell configuration after `pipx ensurepath`.
 
-Ansible is also distributed as Python software.
+### Which should you choose?
 
-Installing Python applications directly into a system-managed Python environment can cause dependency conflicts or externally managed environment errors.
+- Use APT or DNF when you want a distribution-managed package and that package version meets your needs.
+- Use PIP inside a virtual environment when you need a particular Python package version or isolated development environment.
+- Use PIPX for isolated command-line applications such as Ansible.
 
-PIPX isolates command-line applications in separate virtual environments.
-
-Important correction: PIP and PIPX are not the same. PIP installs Python packages into a Python environment; PIPX isolates applications and their dependencies.
-
-You do not need to install Ansible using every method. Choose the installation method supported by your operating system and organization's standards.
-
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
-
-GitHub+2
-
-## 11. Ad-hoc Commands vs Playbooks — When to Use Which?
-
-The instructor revisited this distinction.
-
-| Ad-hoc command            | Playbook                        |
-| ------------------------- | ------------------------------- |
-| Quick one-time operation  | Repeatable automation           |
-| Usually one task          | Multiple tasks and plays        |
-| Direct terminal execution | YAML file                       |
-| Good for troubleshooting  | Good for team collaboration     |
-| Less structured           | Version-controlled and reusable |
-
-Example:
-
-```
-ansible webservers -i inventory.ini \
-  -m ansible.builtin.ping
-```
-
-The same connectivity check can be written as a playbook:
-
-```
----
-- name: Check web server connectivity
-  hosts: webservers
-
-  tasks:
-    - name: Verify Ansible connectivity
-      ansible.builtin.ping:
-```
-
-Industry best practice: Store playbooks in Git so that team members can review changes, track versions and collaborate safely.
+Important correction: PIP is not a replacement for APT or DNF. They manage different package ecosystems. APT/DNF manage operating-system packages; PIP manages Python packages.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+1
 
-## 12. Version Control for DevOps Artifacts
+## 8. Why playbooks should be version-controlled
 
-One of the important discussions was about storing automation code in a shared repository.
+The instructor discussed an important real-world DevOps practice: storing Ansible playbooks in Git.
 
-In real projects, version control is not limited to application source code.
+A playbook is code. It should be maintained like application code, Terraform files, Dockerfiles and Kubernetes manifests.
 
-You should also version-control:
+### What happens without version control?
 
-- Jenkinsfiles.
-- Dockerfiles.
-- Kubernetes YAML files.
-- Terraform configurations.
-- Ansible playbooks.
-- Deployment scripts.
-- Application configuration templates.
+Imagine two engineers independently maintain playbooks for the same production server.
 
-### Example repository structure
+- Engineer A installs NGINX version X.
+- Engineer B changes the playbook to install version Y.
+- Both run their playbooks.
+- The server configuration can change unexpectedly depending on which version runs last.
+
+This can cause configuration drift and inconsistent results.
+
+### Recommended approach
+
+Central Git repository
+
+Shared automation code
+
+Engineer A
+
+Pulls latest playbook
+
+Engineer B
+
+Pulls latest playbook
+
+Consistent server configuration
+
+Reviewed and tracked changes
+
+### What should be version-controlled?
+
+| Artifact                    | Why?                               |
+| --------------------------- | ---------------------------------- |
+| Application source code     | Track application changes          |
+| Jenkinsfile                 | Track CI/CD pipeline changes       |
+| Dockerfile                  | Track container build instructions |
+| Kubernetes manifests        | Track deployment configuration     |
+| Terraform files             | Track infrastructure definitions   |
+| Ansible playbooks and roles | Track server configuration         |
+
+Example repository:
 
 ```
 platform-engineering/
 ├── ansible/
-│   ├── inventory/
-│   │   ├── dev.ini
-│   │   └── prod.ini
-│   └── playbooks/
-│       ├── nginx.yml
-│       └── users.yml
-│
+│   ├── inventories/
+│   ├── playbooks/
+│   └── roles/
 ├── terraform/
-│   ├── main.tf
-│   └── variables.tf
-│
+├── docker/
 ├── kubernetes/
-│   ├── deployment.yaml
-│   └── service.yaml
-│
 └── jenkins/
-    └── Jenkinsfile
 ```
 
-### Why is this important?
+An organization may maintain a central platform repository or store deployment automation alongside each application. The right structure depends on ownership and deployment workflows.
 
-Imagine two engineers independently maintain playbooks.
-
-- Engineer A installs NGINX version 1.24.
-- Engineer B changes the playbook to install version 1.26.
-- Both execute different versions against the same infrastructure.
-
-This can introduce configuration drift and unexpected changes.
-
-A shared Git repository with reviews and controlled releases helps prevent these problems.
-
-Remember: Infrastructure code and automation code should be treated like application code.
+Key takeaway: Version control helps teams know which playbook version is being used, who changed it, what changed and how to roll back.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
-GitHub+1
+GitHub
 
-## 13. Scheduling Ansible Using Cron
+## 9. Scheduling Ansible playbooks using cron
 
-Ansible does not need to be manually executed every time.
+A student asked whether Ansible commands could run automatically every day at 9 AM.
 
-You can schedule a playbook using Linux cron.
+The instructor explained that this is not an Ansible-specific feature. Linux provides a scheduling mechanism called cron.
 
-For example, suppose you want to run an Ansible connectivity check every day at 9 PM.
+Cron can schedule:
 
-### Check existing cron jobs
+- Linux commands.
+- Shell scripts.
+- Ansible ad-hoc commands.
+- Ansible playbooks.
+
+### Useful cron commands
 
 ```
+# List current user's scheduled jobs
 crontab -l
-```
 
-### Edit cron jobs
-
-```
+# Edit current user's scheduled jobs
 crontab -e
 ```
 
@@ -695,18 +850,24 @@ crontab -e
 Cron uses five fields:
 
 ```
-Minute Hour Day-of-month Month Day-of-week
+* * * * * command
+│ │ │ │ │
+│ │ │ │ └── Day of week
+│ │ │ └──── Month
+│ │ └────── Day of month
+│ └──────── Hour
+└────────── Minute
 ```
 
-| Field        | Allowed values             |
-| ------------ | -------------------------- |
-| Minute       | 0–59                       |
-| Hour         | 0–23                       |
-| Day of month | 1–31                       |
-| Month        | 1–12                       |
-| Day of week  | 0–7 (Sunday can be 0 or 7) |
+| Field        | Allowed values                                        |
+| ------------ | ----------------------------------------------------- |
+| Minute       | 0–59                                                  |
+| Hour         | 0–23                                                  |
+| Day of month | 1–31                                                  |
+| Month        | 1–12                                                  |
+| Day of week  | 0–7 (Sunday is 0 or 7 on common cron implementations) |
 
-### Examples
+### Common cron examples
 
 | Schedule                        | Cron expression |
 | ------------------------------- | --------------- |
@@ -715,71 +876,113 @@ Minute Hour Day-of-month Month Day-of-week
 | Every day at midnight           | `0 0 * * *`     |
 | Every day at 9 AM               | `0 9 * * *`     |
 | Every day at 9 PM               | `0 21 * * *`    |
-| Every Monday at 9 AM            | `0 9 * * 1`     |
+| Every Monday at 9 PM            | `0 21 * * 1`    |
 | Every Monday and Friday at 9 PM | `0 21 * * 1,5`  |
+| Every Monday in January at 9 PM | `0 9 * 1 1`     |
 
 ### Schedule an Ansible playbook
 
-Add this to your crontab:
+Suppose your playbook is stored at:
 
 ```
-0 21 * * * /usr/bin/ansible-playbook -i /home/ubuntu/ansible/inventory.ini /home/ubuntu/ansible/ping.yml >> /home/ubuntu/ansible/cron.log 2>&1
+/home/ubuntu/ansible/playbooks/healthcheck.yml
 ```
 
-This runs the playbook every day at 9 PM and appends its output to a log file.
+Edit cron:
 
-Important: Use absolute paths, and ensure the cron execution user has access to the inventory, SSH keys and required permissions. Also check the server's timezone.
+```
+crontab -e
+```
 
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+Add:
 
-GitHub+2
+```
+0 9 * * * /usr/bin/ansible-playbook -i /home/ubuntu/ansible/inventory.ini /home/ubuntu/ansible/playbooks/healthcheck.yml >> /home/ubuntu/ansible/healthcheck.log 2>&1
+```
 
-## 14. Ansible Tower and Automation Scheduling
+This runs the playbook every day at 9 AM.
 
-The instructor also introduced Ansible Tower.
+Why use absolute paths?
 
-[What's new in Ansible Automation Platform 2.4](https://images.openai.com/static-rsc-4/PBUKBAyWwO90heayK_T2lbSgeozcG-hJl1i6ypPYxj_mguc1mTVatoZrten2ODhyT7l3p5YjDWAg0rOg-vAJNvIfnpLoHe_sYt1hH-ke1WoOB8A312Z_2qucXDejXUmkVoOpdTzIGYGBHdVVUDwm1T3xFIQA9kZ7CN3GGHGnZJ0?purpose=inline)
+Cron runs with a limited environment and may not use the same PATH or working directory as your interactive terminal. Use absolute paths for executables, inventory files, playbooks and log files.
 
-[redhat.com](https://www.redhat.com/en/blog/whats-new-in-ansible-automation-platform-2.4?utm_source=chatgpt.com)
+### Scheduling workflow
 
-Ansible Tower was the commercial automation management interface associated with Ansible. Its capabilities are now part of Red Hat Ansible Automation Platform, particularly Automation Controller.
+Cron scheduler
 
-It provides capabilities such as:
+Runs at the configured time
 
-- Web-based interface.
-- Job templates.
-- Scheduling.
-- Role-based access control.
-- Centralized management.
-- Job execution history.
+Ansible playbook
 
-### Scheduling options
+Executes health checks
 
-| Method                      | Purpose                                       |
-| --------------------------- | --------------------------------------------- |
-| Cron                        | Schedule playbooks using Linux                |
-| Ansible Automation Platform | Enterprise automation and scheduling          |
-| Jenkins                     | Trigger Ansible as part of CI/CD              |
-| Other schedulers            | Integrate with supported automation workflows |
+Managed servers
 
-Practical example: Jenkins can trigger an Ansible playbook after a successful application build, while cron can run a daily server health-check playbook.
+Results saved to log file
+
+Important: The cron job runs as the user whose crontab contains it. Ensure that user has the correct SSH key access, inventory permissions, Python environment and sudo privileges.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+1
 
-## 15. Linux Uptime and Load Average
+## 10. Ansible Tower and Automation Controller
 
-The final part of the session moved into an important Linux interview topic.
+The instructor introduced Ansible Tower as an enterprise management solution for Ansible.
 
-### What is uptime?
+The terminology has evolved, so it is important to know the current names.
 
-The `uptime` command displays:
+| Name                          | Meaning                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| Ansible Core                  | Open-source automation engine                                           |
+| Ansible Tower                 | Earlier commercial automation management platform                       |
+| AWX                           | Open-source upstream project related to Ansible Tower                   |
+| Ansible Automation Controller | Enterprise automation controller in Red Hat Ansible Automation Platform |
 
-- Current time.
-- How long the system has been running.
-- Number of logged-in users.
-- System load averages.
+### Why use an automation controller?
+
+Instead of manually executing playbooks from a terminal, an organization can use a centralized web interface.
+
+Typical capabilities include:
+
+- Web-based job execution.
+- Centralized inventory management.
+- Credential management.
+- Role-based access control.
+- Job scheduling.
+- Execution history and logs.
+- Integration with source control.
+- Automation workflow management.
+
+### Comparison
+
+Ansible Core
+
+Run automation using terminal commands and playbooks.
+
+Example: `ansible-playbook site.yml`
+
+Automation Controller
+
+Manage automation centrally through a web interface and API.
+
+Example: Schedule jobs, manage credentials and track execution.
+
+Important: Ansible Tower is not simply another name for Ansible Core. Also, Ansible Automation Controller is part of Red Hat Ansible Automation Platform, while AWX is its upstream open-source project.
+
+### Other scheduling tools
+
+The instructor briefly mentioned workflow schedulers such as Apache Airflow.
+
+Airflow is widely used to orchestrate workflows and data pipelines. It can also coordinate other jobs, but it is not a direct replacement for Ansible or its automation controller.
+
+[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+
+GitHub
+
+## 11. Linux uptime command
+
+The instructor clarified that `uptime` is a Linux command, not an Ansible feature.
 
 Run:
 
@@ -787,127 +990,218 @@ Run:
 uptime
 ```
 
-Example:
+Example output:
 
 ```
-09:30:00 up 1 hour, 40 minutes, 1 user,
-load average: 0.05, 0.10, 0.09
+09:30:00 up 1 hour, 40 min, 1 user, load average: 0.05, 0.10, 0.09
 ```
 
-The three load-average values represent:
+### Understand the output
 
-| Value | Meaning                          |
-| ----- | -------------------------------- |
-| 0.05  | Average over the last 1 minute   |
-| 0.10  | Average over the last 5 minutes  |
-| 0.09  | Average over the last 15 minutes |
+| Output              | Meaning                      |
+| ------------------- | ---------------------------- |
+| `09:30:00`          | Current system time          |
+| `up 1 hour, 40 min` | Time since the system booted |
+| `1 user`            | Number of logged-in users    |
+| `0.05`              | 1-minute load average        |
+| `0.10`              | 5-minute load average        |
+| `0.09`              | 15-minute load average       |
+
+Important: Uptime tells you how long the system has been running. It does not directly measure CPU utilization.
+
+## 12. Linux load average — important interview topic
+
+This was one of the most important interview questions discussed in the session.
+
+The instructor demonstrated how to interpret load average and why the number of CPU cores matters.
 
 ### What is load average?
 
-Load average represents the average number of tasks that are runnable or waiting for CPU time, plus tasks in uninterruptible sleep (commonly I/O waits).
+Load average represents the average number of tasks that are:
 
-It is not the same as CPU utilization percentage.
+- Runnable — running or waiting for CPU time.
+- In uninterruptible sleep — commonly waiting for I/O operations.
 
-### How do you interpret load average?
+It is measured over three time periods:
 
-The instructor discussed why CPU core count matters.
+| Value         | Time period |
+| ------------- | ----------- |
+| First number  | 1 minute    |
+| Second number | 5 minutes   |
+| Third number  | 15 minutes  |
 
-For a rough interpretation, compare load average with the number of logical CPUs.
+For example:
 
-| Logical CPUs | Load average of 1 | Rough interpretation             |
-| ------------ | ----------------- | -------------------------------- |
-| 1            | 1                 | Load around capacity             |
-| 2            | 1                 | Load around half capacity        |
-| 4            | 1                 | Load around one-quarter capacity |
-| 8            | 1                 | Load around one-eighth capacity  |
+```
+load average: 1.00, 1.00, 1.00
+```
 
-This is a simplified comparison, not an exact CPU utilization calculation. I/O wait and other factors also affect load average.
+This means the average load was approximately 1 over each of those three periods.
 
-### Example
+Critical correction: Load average is not the same as CPU utilization percentage. It includes tasks waiting for certain I/O operations too.
 
-Suppose two servers both report a load average of 4.
+### Why do CPU cores matter?
 
-- Server A has 4 logical CPUs.
-- Server B has 8 logical CPUs.
+Consider two machines, both reporting a load average of 1.
 
-The same load average can indicate very different levels of pressure.
+- Machine A has 1 logical CPU.
+- Machine B has 4 logical CPUs.
 
-Interview answer: You cannot interpret load average without knowing the number of logical CPUs and considering whether the system is experiencing CPU or I/O contention.
+The same load number can mean different things on these machines.
 
-### Commands to check CPU information
+Machine A — 1 logical CPU
+
+Load average: 1
+
+At capacity, approximately
+
+Load-to-logical-CPU ratio: 1 ÷ 1 = 1
+
+Machine B — 4 logical CPUs
+
+Load average: 1
+
+Lower relative load
+
+Load-to-logical-CPU ratio: 1 ÷ 4 = 0.25
+
+This ratio is a useful rough indicator, not an exact CPU utilization measurement. A load of 1 on a single-CPU machine does not prove CPU utilization was exactly 100%.
+
+### How to check CPU information
+
+The instructor demonstrated:
 
 ```
 lscpu
 ```
 
-This displays processor information, including:
+This displays:
 
 - CPU architecture.
-- CPU count.
-- Threads per core.
+- Number of CPUs.
+- CPU sockets.
 - Cores per socket.
-- Sockets.
+- Threads per core.
 
-Another useful command:
+Other useful commands:
 
 ```
 nproc
 ```
 
-This displays the number of processing units available to the current process.
-
-For live system information:
+Displays the number of processing units available to the current process.
 
 ```
 top
 ```
 
+Displays live system processes, CPU and memory usage, and load averages.
+
+```
+uptime
+```
+
+Displays uptime and load averages.
+
+### Interview example
+
+Question: A Linux server has a load average of 4. Is the server overloaded?
+
+Answer: We cannot conclude that from the load average alone. First, we need to know the number of logical CPUs and examine the load trend. We should also check CPU utilization, I/O wait and running processes.
+
+| Logical CPUs | Load average | Rough interpretation                                                |
+| ------------ | ------------ | ------------------------------------------------------------------- |
+| 1            | 4            | High relative load                                                  |
+| 2            | 4            | High relative load                                                  |
+| 4            | 4            | Around one runnable/uninterruptible task per logical CPU on average |
+| 8            | 4            | Lower relative load                                                 |
+
+Remember: Always compare load average with the number of logical CPUs. Do not automatically convert load average into a CPU percentage.
+
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
-GitHub+3
+GitHub
 
-## 16. Quick Revision — Interview Questions
+## 13. Quick revision — commands from the session
 
-| Question                                     | Answer                                                               |
-| -------------------------------------------- | -------------------------------------------------------------------- |
-| What is the Ansible ping module?             | Tests Ansible connectivity, not ICMP connectivity.                   |
-| Difference between command and shell?        | Shell supports pipes, redirection and shell features.                |
-| What is the copy module?                     | Transfers files from control node to managed node.                   |
-| What does `ok` mean?                         | Desired state already exists.                                        |
-| What does `changed` mean?                    | Ansible modified the system.                                         |
-| What does `unreachable` mean?                | Ansible could not connect to the host.                               |
-| What is `ignore_errors`?                     | Allows eligible task failures without stopping the play.             |
-| What is rescue?                              | Executes recovery tasks after a block failure.                       |
-| What is check mode?                          | Simulates supported changes without applying them.                   |
-| What does `--diff` do?                       | Displays file/configuration differences.                             |
-| What are forks?                              | Maximum number of hosts Ansible processes concurrently.              |
-| What is the default forks value?             | 5.                                                                   |
-| What is `become: true`?                      | Enables privilege escalation.                                        |
-| Why is Python required on managed nodes?     | Most standard Ansible modules require Python.                        |
-| How do you display inventory groups?         | `ansible-inventory --graph`.                                         |
-| How do you schedule a playbook?              | Cron or Ansible Automation Platform.                                 |
-| What is uptime?                              | Displays system running time and load averages.                      |
-| What does load average represent?            | Average runnable and uninterruptible tasks over 1, 5 and 15 minutes. |
-| Is load average the same as CPU utilization? | No.                                                                  |
-| How do you check CPU cores?                  | `lscpu` or `nproc`.                                                  |
+| Command                                              | Purpose                            |
+| ---------------------------------------------------- | ---------------------------------- |
+| `ansible all -m ping`                                | Test Ansible connectivity          |
+| `ansible all -m command -a "free -h"`                | Check memory on managed hosts      |
+| `ansible all -m shell -a "ps aux \\| grep nginx"`    | Execute a shell command            |
+| `ansible all -m copy -a "src=a.txt dest=/tmp/a.txt"` | Copy a file                        |
+| `ansible-playbook --syntax-check site.yml`           | Validate playbook syntax           |
+| `ansible-playbook --check site.yml`                  | Check mode / dry run               |
+| `ansible-playbook --diff site.yml`                   | Show supported file changes        |
+| `ansible-playbook -f 10 site.yml`                    | Run with 10 forks                  |
+| `ansible-playbook -b site.yml`                       | Enable privilege escalation        |
+| `ansible-playbook -b -K site.yml`                    | Prompt for become password         |
+| `ansible-inventory -i inventory.ini --list`          | Display inventory                  |
+| `ansible-inventory -i inventory.ini --graph`         | Display inventory hierarchy        |
+| `ansible all -i inventory.ini --list-hosts`          | List matching hosts                |
+| `ssh-keygen -R IP_ADDRESS`                           | Remove a known-host entry          |
+| `python3 --version`                                  | Check Python version               |
+| `pipx install --include-deps ansible`                | Install Ansible using PIPX         |
+| `crontab -l`                                         | List scheduled jobs                |
+| `crontab -e`                                         | Edit scheduled jobs                |
+| `uptime`                                             | Check uptime and load average      |
+| `lscpu`                                              | Check CPU information              |
+| `nproc`                                              | Check available processing units   |
+| `top`                                                | Monitor system processes and usage |
 
-## 17. Complete Session Mental Model
+## 14. Interview questions
 
-\#chatgpt-mermaid-\_r_ft6\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_ft6\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_ft6\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_ft6\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_ft6\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_ft6\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_ft6\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_ft6\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_ft6\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_ft6\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_ft6\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_ft6\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_ft6\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_ft6\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_ft6\_ p{margin:0;}#chatgpt-mermaid-\_r_ft6\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_ft6\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_ft6\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_ft6\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_ft6\_ .label text,#chatgpt-mermaid-\_r_ft6\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_ft6\_ .node rect,#chatgpt-mermaid-\_r_ft6\_ .node circle,#chatgpt-mermaid-\_r_ft6\_ .node ellipse,#chatgpt-mermaid-\_r_ft6\_ .node polygon,#chatgpt-mermaid-\_r_ft6\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_ft6\_ .rough-node .label text,#chatgpt-mermaid-\_r_ft6\_ .node .label text,#chatgpt-mermaid-\_r_ft6\_ .image-shape .label,#chatgpt-mermaid-\_r_ft6\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_ft6\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_ft6\_ .rough-node .label,#chatgpt-mermaid-\_r_ft6\_ .node .label,#chatgpt-mermaid-\_r_ft6\_ .image-shape .label,#chatgpt-mermaid-\_r_ft6\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_ft6\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_ft6\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_ft6\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_ft6\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_ft6\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_ft6\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_ft6\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_ft6\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_ft6\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_ft6\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_ft6\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_ft6\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_ft6\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_ft6\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_ft6\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_ft6\_ .icon-shape,#chatgpt-mermaid-\_r_ft6\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_ft6\_ .icon-shape p,#chatgpt-mermaid-\_r_ft6\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_ft6\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_ft6\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_ft6\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_ft6\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_ft6\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_ft6\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_ft6\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_ft6\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_ft6\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_ft6\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_ft6\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_ft6\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_ft6\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_ft6\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_ft6\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_ft6\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_ft6\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_ft6\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_ft6\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_ft6\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_ft6\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_ft6\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_ft6\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_ft6\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_ft6\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_ft6\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_ft6\_ .node rect,#chatgpt-mermaid-\_r_ft6\_ .node circle,#chatgpt-mermaid-\_r_ft6\_ .node ellipse,#chatgpt-mermaid-\_r_ft6\_ .node polygon,#chatgpt-mermaid-\_r_ft6\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_ft6\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_ft6\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_ft6\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_ft6\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_ft6\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}Ansible Control NodeInventorySelect Managed HostsSSH ConnectivityExecute ModulesCheck Task Resultsok / changed / failedskipped / ignored / rescuedCheck Mode + DiffCron / Jenkins / AutomationControllerGit Repository
+1. What is the difference between `command` and `shell` modules?
+2. What is the difference between `ok` and `changed`?
+3. What is the difference between `ignored` and `rescued`?
+4. What is the purpose of `ignore_errors`?
+5. What is a rescue block?
+6. What is Ansible check mode?
+7. What is the difference between `--check` and `--diff`?
+8. What are forks in Ansible?
+9. How do you troubleshoot `Permission denied (publickey)`?
+10. What is `known_hosts` and why is it important?
+11. What is the purpose of `become: true`?
+12. What is the difference between `-b` and `-K`?
+13. Why does Ansible need Python on managed nodes?
+14. How do you troubleshoot `No hosts matched`?
+15. How do you display an inventory hierarchy?
+16. What is the difference between APT, DNF and PIP?
+17. What is the difference between PIP and PIPX?
+18. Why should Ansible playbooks be stored in Git?
+19. How can you schedule a playbook to run every day at 9 AM?
+20. What is Ansible Tower? What is Automation Controller?
+21. What does the Linux `uptime` command display?
+22. What is load average?
+23. Why must load average be compared with logical CPU count?
+24. Is load average the same as CPU utilization?
 
-Remember these key concepts:
+## 15. Final mental model
 
-1. Modules perform the actual operations.
-2. Ad-hoc commands are useful for quick tasks; playbooks are better for reusable automation.
-3. SSH and sudo permissions are essential for remote configuration.
-4. Check mode helps preview changes.
-5. Forks control parallel execution.
-6. Git keeps automation code consistent across teams.
-7. Cron and automation platforms schedule execution.
-8. Load average must be interpreted relative to CPU capacity.
+Ansible modules
+
+Perform server operations
+
+Task statuses
+
+Understand what happened
+
+Check mode, diff and forks
+
+Validate changes and control execution
+
+Troubleshooting and privilege escalation
+
+Resolve connectivity and permission issues
+
+Git + Cron + Automation Controller
+
+Manage, share and schedule automation
+
+One-line summary: Ansible automates server operations through modules and playbooks; Git manages the automation code, cron schedules execution, and monitoring commands such as `uptime`, `top` and `lscpu` help understand server health.
 
 Original transcript: [DevOps Session — 1 November 2026](https://github.com/jeevanadv2000-pixel/python/blob/main/DevOps%20Session\(Morning\)%20transcript_2026-11-01_09.34.39.txt?utm_source=chatgpt.com)
 
 Session complete
 
-This session extends the previous Ansible classes with practical execution, troubleshooting, scheduling and Linux monitoring concepts. The next logical topic is Ansible variables, conditions, loops, handlers and roles.
+These notes cover the full session, including the practical demonstrations, troubleshooting discussion, scheduling example and Linux load-average interview question.

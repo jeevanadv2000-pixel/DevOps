@@ -1,29 +1,31 @@
-# DevOps Session — Terraform for_each, Dynamic Blocks, Provisioners & Workspaces Notes
+I’ve opened the full October 26 session transcript. I’ll correct the speech-to-text errors and turn it into concise, structured Terraform notes, preserving the technical explanations and examples. I’ll also use visual flow layouts rather than relying on Mermaid diagrams.
 
-Date: 26 October 2026\
-Instructor: Rochak Agrawal\
-Focus: Terraform iteration, `for_each`, dynamic blocks, provisioners and managing multiple environments with workspaces.
+# DevOps Session — Terraform Notes
 
-These notes are condensed from the transcript. Participant discussions and repetitions have been removed, speech-to-text errors corrected, and important technical clarifications added.
+Date: 26 October 2026 · Instructor: Rochak Agrawal
 
-## 1. Terraform looping — count vs for_each
+Topics: `for_each`, dynamic blocks, provisioners, Terraform workspaces and environment isolation.
 
-Terraform provides two commonly used meta-arguments to create multiple instances of a resource.
+I’ve corrected obvious transcript errors such as “4H” to `for_each`, “dynamic blob” to `dynamic block`, “telephone plan” to `terraform plan`, and “estate file” to `state file`. I’ve also clarified a few technical points where the spoken explanation needed more precision.
 
-| Feature          | `count`                            | `for_each`                                           |
-| ---------------- | ---------------------------------- | ---------------------------------------------------- |
-| Identification   | Numeric index                      | Map key or set element                               |
-| Resource address | `resource.name[0]`                 | `resource.name["key"]`                               |
-| Best suited for  | Similar, interchangeable instances | Instances with distinct identities or configurations |
-| Example          | 3 identical EC2 instances          | Web, app and DB servers with different sizes         |
+## 1. `count` vs `for_each`
 
-### 1.1 Using for_each with a set
+Terraform provides two common ways to create multiple instances of a resource.
 
-Example: Create three IAM users.
+| Feature         | `count`                            | `for_each`                                           |
+| --------------- | ---------------------------------- | ---------------------------------------------------- |
+| Best suited for | Similar, interchangeable resources | Resources with distinct identities or configurations |
+| Reference       | `count.index`                      | `each.key`, `each.value`                             |
+| Identity        | Numeric index                      | Map key or set member                                |
+| Example         | 3 similar EC2 instances            | Web, app and DB instances                            |
+
+Important: `count` can also create resources with different configurations using `count.index`. However, `for_each` is usually easier to manage when resources have meaningful individual identities.
+
+### Example: Create multiple IAM users
 
 ```
 locals {
-  iam_users = toset(["alice", "bob", "charlie"])
+  iam_users = toset(["Alice", "Bob", "Charlie"])
 }
 
 resource "aws_iam_user" "users" {
@@ -34,22 +36,35 @@ resource "aws_iam_user" "users" {
 
 How it works:
 
-- `toset()` converts the list into a set and removes duplicates.
-- `for_each` iterates over each set element.
-- `each.value` provides the current username.
-- Each user becomes a separate AWS IAM resource.
+Input set
 
-Resource addresses:
+Alice
 
-```
-aws_iam_user.users["alice"]
-aws_iam_user.users["bob"]
-aws_iam_user.users["charlie"]
-```
+Bob
 
-### 1.2 Using for_each with a map
+Charlie
 
-Use a map when each resource needs different configuration.
+for_each
+
+Terraform creates three separate resources
+
+Alice
+
+IAM user
+
+Bob
+
+IAM user
+
+Charlie
+
+IAM user
+
+- `toset()` converts a collection into a set and removes duplicate values.
+- `each.value` gives the current set member.
+- Adding another name creates another IAM user without recreating the existing users.
+
+### Example: Different EC2 configurations
 
 ```
 locals {
@@ -70,71 +85,93 @@ resource "aws_instance" "servers" {
   for_each      = local.ec2_instances
   ami           = "ami-xxxxxxxx"
   instance_type = each.value.instance_type
-
-  tags = {
-    Name = each.key
-  }
 }
 ```
 
-Here:
+This creates three EC2 instances with different instance types. The AMI is an example placeholder; use a valid AMI for your region.
 
-- `each.key` identifies the server (`web`, `app`, `db`).
-- `each.value.instance_type` retrieves its instance size.
-
-Result: Three EC2 instances with different configurations.
+Remember: `each.key` gives `web`, `app` or `db`; `each.value` gives the corresponding configuration object.&#x20;
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+1
 
+
+
 ## 2. Dynamic blocks
 
-This is the most important concept from the session.
+A dynamic block generates repeated nested configuration blocks inside a resource.
 
-A normal `for_each` creates multiple resource instances. A `dynamic` block generates repeated nested configuration blocks inside a single resource.
+This is different from `for_each`, which creates multiple resource instances.
 
-Example: One AWS Security Group can contain multiple inbound rules:
+### Understand the difference visually
+
+Normal `for_each`
+
+Creates multiple resources
+
+Web SG
+
+App SG
+
+DB SG
+
+Dynamic block
+
+Creates multiple nested rules inside each resource
+
+One Security Group
+
+HTTP : 80
+
+HTTPS : 443
+
+SSH : 22
+
+### Real-world example: Security groups
+
+A security group can contain multiple inbound (ingress) and outbound (egress) rules.
+
+Suppose you need:
 
 - HTTP — port 80
 - HTTPS — port 443
 - SSH — port 22
 
-Instead of repeating the ingress block manually, use a dynamic block.
-
-### Example: Security Group with dynamic ingress rules
+Instead of manually repeating the ingress block, you can use a dynamic block.
 
 ```
 locals {
-  ingress_rules = {
-    http = {
+  ingress_rules = [
+    {
+      description = "HTTP"
       port        = 80
       protocol    = "tcp"
       cidr_blocks = ["0.0.0.0/0"]
-    }
-
-    https = {
+    },
+    {
+      description = "HTTPS"
       port        = 443
       protocol    = "tcp"
       cidr_blocks = ["0.0.0.0/0"]
-    }
-
-    ssh = {
+    },
+    {
+      description = "SSH"
       port        = 22
       protocol    = "tcp"
-      cidr_blocks = ["YOUR_PUBLIC_IP/32"]
+      cidr_blocks = ["10.0.0.0/16"]
     }
-  }
+  ]
 }
 
 resource "aws_security_group" "web" {
-  name = "web-security-group"
+  name = "web-sg"
 
   dynamic "ingress" {
     for_each = local.ingress_rules
 
     content {
-      description = ingress.key
+      description = ingress.value.description
       from_port   = ingress.value.port
       to_port     = ingress.value.port
       protocol    = ingress.value.protocol
@@ -144,101 +181,106 @@ resource "aws_security_group" "web" {
 }
 ```
 
-### Understanding the dynamic block
+How it works:
 
-| Keyword             | Meaning                                      |
-| ------------------- | -------------------------------------------- |
-| `dynamic "ingress"` | Generates repeated ingress blocks            |
-| `for_each`          | Iterates over the supplied collection        |
-| `content`           | Defines the contents of each generated block |
-| `ingress.key`       | Current map key                              |
-| `ingress.value`     | Current map value                            |
+1. `dynamic "ingress"` tells Terraform to generate ingress blocks.
+2. `for_each` loops through the list of rules.
+3. `content` defines the contents of each generated block.
+4. `ingress.value` accesses the current rule's values.
 
-The result is one Security Group with three ingress rules, not three Security Groups.
+The result is one security group containing three ingress rules, not three security groups.
 
-Key distinction
+### Combining `for_each` and dynamic blocks
 
-### for_each vs dynamic for_each
+The instructor also demonstrated creating three security groups — Web, App and DB — each with its own set of rules.
 
-| Normal for_each                  | Dynamic block                                                                |
-| -------------------------------- | ---------------------------------------------------------------------------- |
-| Creates multiple resources       | Generates multiple nested blocks                                             |
-| Example: three Security Groups   | Example: three ingress rules inside one Security Group                       |
-| Uses `each.key` and `each.value` | Uses the dynamic block's iterator, such as `ingress.key` and `ingress.value` |
+Outer `for_each`: creates security groups
 
-### Mermaid diagram — understanding the difference
+Web SG
 
-\#chatgpt-mermaid-\_r_f28\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_f28\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f28\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f28\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_f28\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f28\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_f28\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_f28\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_f28\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_f28\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_f28\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_f28\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f28\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f28\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_f28\_ p{margin:0;}#chatgpt-mermaid-\_r_f28\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f28\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f28\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f28\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_f28\_ .label text,#chatgpt-mermaid-\_r_f28\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f28\_ .node rect,#chatgpt-mermaid-\_r_f28\_ .node circle,#chatgpt-mermaid-\_r_f28\_ .node ellipse,#chatgpt-mermaid-\_r_f28\_ .node polygon,#chatgpt-mermaid-\_r_f28\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_f28\_ .rough-node .label text,#chatgpt-mermaid-\_r_f28\_ .node .label text,#chatgpt-mermaid-\_r_f28\_ .image-shape .label,#chatgpt-mermaid-\_r_f28\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_f28\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_f28\_ .rough-node .label,#chatgpt-mermaid-\_r_f28\_ .node .label,#chatgpt-mermaid-\_r_f28\_ .image-shape .label,#chatgpt-mermaid-\_r_f28\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_f28\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_f28\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f28\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f28\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_f28\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_f28\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f28\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f28\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f28\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_f28\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f28\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f28\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f28\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_f28\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f28\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_f28\_ .icon-shape,#chatgpt-mermaid-\_r_f28\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f28\_ .icon-shape p,#chatgpt-mermaid-\_r_f28\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_f28\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_f28\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f28\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_f28\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_f28\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_f28\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_f28\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_f28\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_f28\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f28\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_f28\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_f28\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_f28\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f28\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_f28\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_f28\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f28\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_f28\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_f28\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f28\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_f28\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f28\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f28\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f28\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_f28\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_f28\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_f28\_ .node rect,#chatgpt-mermaid-\_r_f28\_ .node circle,#chatgpt-mermaid-\_r_f28\_ .node ellipse,#chatgpt-mermaid-\_r_f28\_ .node polygon,#chatgpt-mermaid-\_r_f28\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f28\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_f28\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_f28\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_f28\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f28\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}Terraform configurationWhat needs repeating?for_eachdynamic block3 Security Groups1 Security GroupHTTP ruleHTTPS ruleSSH ruleEntire resourcesNested configuration
+App SG
 
-Other dynamic block use cases:
+DB SG
 
-- Multiple EBS block-device configurations.
-- Multiple listener or backend blocks where supported.
-- Multiple ingress and egress rules.
-- Repeated nested configuration supported by a provider resource.
+Inner dynamic block: creates rules inside each SG
 
-Remember: A dynamic block can only generate nested blocks supported by that resource's schema. It cannot generate arbitrary resource blocks.
+Port 80
+
+Port 443
+
+App port
+
+Port 443
+
+DB port
+
+Other examples of dynamic blocks include:
+
+- Multiple EBS volume configuration blocks inside a supported resource.
+- Multiple listener or backend configuration blocks where the provider resource schema supports them.
+
+Important: A dynamic block can only generate nested block types supported by that Terraform resource. It does not create arbitrary AWS resources.&#x20;
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+1
 
-## 3. Three ways of implementing Terraform loops
 
-| Requirement                                           | Approach        |
-| ----------------------------------------------------- | --------------- |
-| Create 3 similar EC2 instances                        | `count`         |
-| Create web, app and DB instances with different sizes | `for_each`      |
-| Create one Security Group with multiple ingress rules | `dynamic` block |
 
-You can also combine `for_each` with a dynamic block.
+## 3. Terraform provisioners
 
-For example, create three Security Groups, each with its own set of ingress rules.
+Provisioners execute commands or copy files during resource creation or destruction.
 
-\#chatgpt-mermaid-\_r_f2j\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_f2j\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f2j\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f2j\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_f2j\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f2j\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_f2j\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_f2j\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_f2j\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_f2j\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_f2j\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_f2j\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f2j\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f2j\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_f2j\_ p{margin:0;}#chatgpt-mermaid-\_r_f2j\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f2j\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f2j\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f2j\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_f2j\_ .label text,#chatgpt-mermaid-\_r_f2j\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f2j\_ .node rect,#chatgpt-mermaid-\_r_f2j\_ .node circle,#chatgpt-mermaid-\_r_f2j\_ .node ellipse,#chatgpt-mermaid-\_r_f2j\_ .node polygon,#chatgpt-mermaid-\_r_f2j\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_f2j\_ .rough-node .label text,#chatgpt-mermaid-\_r_f2j\_ .node .label text,#chatgpt-mermaid-\_r_f2j\_ .image-shape .label,#chatgpt-mermaid-\_r_f2j\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_f2j\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_f2j\_ .rough-node .label,#chatgpt-mermaid-\_r_f2j\_ .node .label,#chatgpt-mermaid-\_r_f2j\_ .image-shape .label,#chatgpt-mermaid-\_r_f2j\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_f2j\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_f2j\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f2j\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f2j\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_f2j\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_f2j\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f2j\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f2j\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f2j\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_f2j\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f2j\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f2j\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f2j\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_f2j\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f2j\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_f2j\_ .icon-shape,#chatgpt-mermaid-\_r_f2j\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f2j\_ .icon-shape p,#chatgpt-mermaid-\_r_f2j\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_f2j\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_f2j\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f2j\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_f2j\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_f2j\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_f2j\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_f2j\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_f2j\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_f2j\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f2j\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_f2j\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_f2j\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_f2j\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f2j\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_f2j\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_f2j\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f2j\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_f2j\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_f2j\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f2j\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_f2j\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f2j\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f2j\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f2j\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_f2j\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_f2j\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_f2j\_ .node rect,#chatgpt-mermaid-\_r_f2j\_ .node circle,#chatgpt-mermaid-\_r_f2j\_ .node ellipse,#chatgpt-mermaid-\_r_f2j\_ .node polygon,#chatgpt-mermaid-\_r_f2j\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f2j\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_f2j\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_f2j\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_f2j\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f2j\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}for_each: Security GroupsWeb SGApp SGDB SGDynamic ingress rulesDynamic ingress rulesDynamic ingress rules
+They are sometimes used when you need to perform additional actions after creating infrastructure.
 
-This is useful when different application tiers need different network access rules.
+### Types of provisioners
 
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+| Provisioner   | Purpose                                          |
+| ------------- | ------------------------------------------------ |
+| `local-exec`  | Runs commands on the machine executing Terraform |
+| `remote-exec` | Runs commands on a remote machine                |
+| `file`        | Copies files to a remote machine                 |
 
-GitHub
+### Visual workflow: `remote-exec`
 
-## 4. Terraform provisioners
+Terraform machine
 
-Provisioners execute commands or transfer files during Terraform resource operations.
+Runs Terraform configuration
 
-The session focused on two execution locations:
+Creates EC2 instance
 
-| Provisioner   | Execution location              | Example                          |
-| ------------- | ------------------------------- | -------------------------------- |
-| `local-exec`  | Machine running Terraform       | Run a local script               |
-| `remote-exec` | Remote server                   | Install NGINX on EC2             |
-| `file`        | Copies files to a remote server | Upload application configuration |
+Remote EC2 instance
 
-### 4.1 Remote-exec example
+Connects using SSH
 
-The instructor demonstrated creating an EC2 instance and installing NGINX automatically.
+remote-exec
+
+Install and start NGINX
+
+Web server running
+
+### Example: Install NGINX on an EC2 instance
 
 ```
 resource "aws_instance" "web" {
   ami                    = "ami-xxxxxxxx"
   instance_type          = "t3.micro"
-  key_name               = "my-key"
-
+  key_name               = "my-ec2-key"
   vpc_security_group_ids = ["sg-xxxxxxxx"]
-
-  provisioner "remote-exec" {
-    inline = [
-      "sudo dnf install nginx -y",
-      "sudo systemctl enable --now nginx"
-    ]
-  }
 
   connection {
     type        = "ssh"
     user        = "ec2-user"
-    private_key = file("~/.ssh/my-key.pem")
+    private_key = file("my-ec2-key.pem")
     host        = self.public_ip
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo dnf install nginx -y",
+      "sudo systemctl enable nginx",
+      "sudo systemctl start nginx"
+    ]
   }
 }
 
@@ -247,263 +289,296 @@ output "public_ip" {
 }
 ```
 
-Execution sequence:
+This example uses Amazon Linux 2023 commands. Ubuntu typically uses `apt` instead of `dnf`.
 
-1. Terraform creates the EC2 instance.
-2. It obtains the instance's public IP.
-3. Terraform connects using SSH.
-4. It authenticates using the private key.
-5. It executes the commands in `inline`.
-6. NGINX gets installed and started.
+Understanding the connection block:
 
-### Mermaid diagram — remote-exec workflow
+| Attribute        | Meaning                                 |
+| ---------------- | --------------------------------------- |
+| `type`           | Connection protocol                     |
+| `user`           | Remote Linux username                   |
+| `private_key`    | Private SSH key used for authentication |
+| `host`           | Remote machine's IP or hostname         |
+| `self.public_ip` | Public IP of the resource being created |
 
-\#chatgpt-mermaid-\_r_f32\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_f32\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f32\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f32\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_f32\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f32\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_f32\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_f32\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_f32\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_f32\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_f32\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_f32\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f32\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f32\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_f32\_ p{margin:0;}#chatgpt-mermaid-\_r_f32\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f32\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f32\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f32\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_f32\_ .label text,#chatgpt-mermaid-\_r_f32\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f32\_ .node rect,#chatgpt-mermaid-\_r_f32\_ .node circle,#chatgpt-mermaid-\_r_f32\_ .node ellipse,#chatgpt-mermaid-\_r_f32\_ .node polygon,#chatgpt-mermaid-\_r_f32\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_f32\_ .rough-node .label text,#chatgpt-mermaid-\_r_f32\_ .node .label text,#chatgpt-mermaid-\_r_f32\_ .image-shape .label,#chatgpt-mermaid-\_r_f32\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_f32\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_f32\_ .rough-node .label,#chatgpt-mermaid-\_r_f32\_ .node .label,#chatgpt-mermaid-\_r_f32\_ .image-shape .label,#chatgpt-mermaid-\_r_f32\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_f32\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_f32\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f32\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f32\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_f32\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_f32\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f32\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f32\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f32\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_f32\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f32\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f32\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f32\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_f32\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f32\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_f32\_ .icon-shape,#chatgpt-mermaid-\_r_f32\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f32\_ .icon-shape p,#chatgpt-mermaid-\_r_f32\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_f32\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_f32\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f32\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_f32\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_f32\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_f32\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_f32\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_f32\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_f32\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f32\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_f32\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_f32\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_f32\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f32\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_f32\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_f32\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f32\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_f32\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_f32\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f32\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_f32\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f32\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f32\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f32\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_f32\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_f32\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_f32\_ .node rect,#chatgpt-mermaid-\_r_f32\_ .node circle,#chatgpt-mermaid-\_r_f32\_ .node ellipse,#chatgpt-mermaid-\_r_f32\_ .node polygon,#chatgpt-mermaid-\_r_f32\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f32\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_f32\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_f32\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_f32\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f32\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}terraform applyCreate EC2 instanceObtain public IPConnect through SSHAuthentication successful?Connection failsExecute remote commandsInstall NGINXStart NGINXProvisioning completeNoYes
-
-### 4.2 Common remote-exec errors
-
-The instructor encountered two important problems.
-
-| Error                      | Cause                                             |
-| -------------------------- | ------------------------------------------------- |
-| `command not found`        | Used Ubuntu commands on a CentOS-based server     |
-| SSH authentication failure | Incorrect private key or mismatched key pair      |
-| Connection timeout         | Network, security group or SSH connectivity issue |
-
-Important: The Linux distribution determines which package manager and commands should be used.
-
-| Distribution      | Package manager |
-| ----------------- | --------------- |
-| Ubuntu/Debian     | `apt`           |
-| Amazon Linux 2023 | `dnf`           |
-| Modern RHEL       | `dnf`           |
-
-The private key must correspond to the public key configured for the EC2 instance.
+The instructor demonstrated that a wrong package manager causes command failures, while a mismatched SSH key prevents the remote connection. The EC2 key pair and local private key must correspond.&#x20;
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+1
 
-## 5. Terraform vs Ansible — infrastructure provisioning and configuration management
 
-A question raised during the session was: If Ansible is used to configure servers, why do we need Terraform provisioners?
 
-The answer is that infrastructure provisioning and configuration management are related but different responsibilities.
+### Provisioner troubleshooting
 
-| Terraform                                      | Ansible                                                  |
-| ---------------------------------------------- | -------------------------------------------------------- |
-| Primarily provisions infrastructure            | Primarily manages server configuration                   |
-| Creates EC2, VPC, subnets and security groups  | Installs packages, creates users and configures services |
-| Declarative infrastructure management          | Automates configuration tasks                            |
-| Has provisioners for limited command execution | Has broader configuration-management capabilities        |
+| Problem                | What to check                                         |
+| ---------------------- | ----------------------------------------------------- |
+| SSH connection timeout | Security group, network route, public IP, SSH port 22 |
+| Authentication failure | Correct private key and matching EC2 key pair         |
+| Permission denied      | Correct SSH username and permissions                  |
+| `command not found`    | Correct Linux distribution and package manager        |
+| NGINX fails to start   | Package installation, service name and logs           |
 
-Example DevOps workflow:
+### Terraform provisioners vs Ansible
 
-\#chatgpt-mermaid-\_r_f3d\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_f3d\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f3d\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f3d\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_f3d\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f3d\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_f3d\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_f3d\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_f3d\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_f3d\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_f3d\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_f3d\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f3d\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f3d\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_f3d\_ p{margin:0;}#chatgpt-mermaid-\_r_f3d\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f3d\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f3d\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f3d\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_f3d\_ .label text,#chatgpt-mermaid-\_r_f3d\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f3d\_ .node rect,#chatgpt-mermaid-\_r_f3d\_ .node circle,#chatgpt-mermaid-\_r_f3d\_ .node ellipse,#chatgpt-mermaid-\_r_f3d\_ .node polygon,#chatgpt-mermaid-\_r_f3d\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_f3d\_ .rough-node .label text,#chatgpt-mermaid-\_r_f3d\_ .node .label text,#chatgpt-mermaid-\_r_f3d\_ .image-shape .label,#chatgpt-mermaid-\_r_f3d\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_f3d\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_f3d\_ .rough-node .label,#chatgpt-mermaid-\_r_f3d\_ .node .label,#chatgpt-mermaid-\_r_f3d\_ .image-shape .label,#chatgpt-mermaid-\_r_f3d\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_f3d\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_f3d\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f3d\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f3d\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_f3d\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_f3d\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f3d\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f3d\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f3d\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_f3d\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f3d\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f3d\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f3d\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_f3d\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f3d\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_f3d\_ .icon-shape,#chatgpt-mermaid-\_r_f3d\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f3d\_ .icon-shape p,#chatgpt-mermaid-\_r_f3d\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_f3d\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_f3d\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f3d\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_f3d\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_f3d\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_f3d\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_f3d\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_f3d\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_f3d\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f3d\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_f3d\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_f3d\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_f3d\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f3d\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_f3d\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_f3d\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f3d\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_f3d\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_f3d\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f3d\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_f3d\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f3d\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f3d\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f3d\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_f3d\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_f3d\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_f3d\_ .node rect,#chatgpt-mermaid-\_r_f3d\_ .node circle,#chatgpt-mermaid-\_r_f3d\_ .node ellipse,#chatgpt-mermaid-\_r_f3d\_ .node polygon,#chatgpt-mermaid-\_r_f3d\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f3d\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_f3d\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_f3d\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_f3d\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f3d\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}TerraformCreate EC2 instanceAnsible connects to EC2Install Java and NGINXConfigure applicationDeploy application
+The instructor explained that Terraform is primarily used for infrastructure provisioning, while Ansible is commonly used for configuration management.
 
-Best practice: Prefer Ansible, cloud-init, user data or prebuilt images for substantial server configuration. Terraform provisioners are generally a last resort for simple tasks.
+| Terraform                                    | Ansible                                            |
+| -------------------------------------------- | -------------------------------------------------- |
+| Creates infrastructure                       | Configures existing infrastructure                 |
+| Creates EC2, VPC, S3, etc.                   | Installs software, creates users, manages services |
+| Provisioners offer limited command execution | Designed for repeatable configuration management   |
+
+Best practice: Prefer cloud-init/user data, configuration-management tools such as Ansible, or prebuilt machine images for software configuration. Terraform provisioners are generally a last resort.
+
+Why? Provisioners have limited lifecycle and error-handling capabilities. They are not a substitute for a full configuration-management tool.&#x20;
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
-GitHub
+GitHub+1
 
-## 6. Managing multiple environments — the state file problem
 
-This was another major topic in the session.
 
-Imagine you maintain two environments:
+## 4. Terraform state and environment isolation
 
-| Environment | Instance type |
-| ----------- | ------------- |
-| Development | `t3.micro`    |
-| Production  | `t3.large`    |
+This is one of the most important topics in this session.
 
-You have two variable files:
+Imagine you have two environments:
 
-`dev.tfvars`
+- Production: `t2.large`
+- Development: `t2.micro`
 
-```
-instance_type = "t3.micro"
-```
+You create two variable files:
 
 `prod.tfvars`
 
 ```
-instance_type = "t3.large"
+instance_type = "t2.large"
 ```
 
-### What is the problem with using both in one working directory?
+`dev.tfvars`
 
-If you use the same configuration and the same state file:
+```
+instance_type = "t2.micro"
+```
 
-1. Apply `prod.tfvars` and Terraform creates a production instance.
-2. State records the production resource.
-3. Apply `dev.tfvars` using that same state.
-4. Terraform sees that the desired configuration has changed.
-5. It may plan to modify or replace the production instance.
+You run:
 
-This can accidentally affect production infrastructure.
+```
+terraform apply -var-file="prod.tfvars"
+```
 
-The important issue is not the `.tfvars` files themselves. It is sharing one state between independent environments.
+Terraform creates the production instance and records it in the state file.
 
-### Solution 1: Separate folders
+Now you run:
 
-Maintain separate directories for each environment.
+```
+terraform apply -var-file="dev.tfvars"
+```
+
+The problem: Both commands use the same Terraform state. Terraform compares the configuration with the existing state and may modify or replace the production resource to match the development configuration.
+
+One configuration folder and one state file
+
+`prod.tfvars` → `t2.large`
+
+`dev.tfvars` → `t2.micro`
+
+Same Terraform state
+
+Environments are not isolated
+
+Risk: applying development configuration can affect production infrastructure.
+
+The solution is to isolate environments using separate state files. Two common approaches are:
+
+1. Separate folders and state.
+2. Terraform workspaces.
+
+[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+
+GitHub+1
+
+## 5. Terraform workspaces
+
+Terraform workspaces allow you to manage multiple state instances using the same configuration directory.
+
+Think of them as separate working contexts, similar in concept to Git branches — but they isolate Terraform state, not the entire infrastructure or cloud account.
+
+### Workspace commands
+
+| Command                                 | Purpose                             |
+| --------------------------------------- | ----------------------------------- |
+| `terraform workspace list`              | Lists available workspaces          |
+| `terraform workspace show`              | Shows the current workspace         |
+| `terraform workspace new dev`           | Creates and selects a new workspace |
+| `terraform workspace select dev`        | Switches to an existing workspace   |
+| `terraform workspace delete dev`        | Deletes a workspace                 |
+| `terraform workspace delete -force dev` | Force-deletes a workspace           |
+
+The `default` workspace exists automatically.
+
+### Example workflow
+
+```
+# Check current workspace
+terraform workspace show
+
+# List all workspaces
+terraform workspace list
+
+# Create new workspaces
+terraform workspace new dev
+terraform workspace new prod
+
+# Switch between workspaces
+terraform workspace select dev
+terraform workspace select prod
+```
+
+### Use `terraform.workspace` in configuration
+
+You can use the current workspace name in your configuration.
+
+```
+resource "aws_s3_bucket" "app" {
+  bucket = "my-app-${terraform.workspace}"
+}
+```
+
+For example:
+
+| Workspace | Bucket name      |
+| --------- | ---------------- |
+| default   | `my-app-default` |
+| dev       | `my-app-dev`     |
+| prod      | `my-app-prod`    |
+
+S3 bucket names must be globally unique, so in real projects you should include an account or unique suffix as well.
+
+### How workspace state files are stored
+
+For the local backend:
+
+Terraform project directory
+
+terraform.tfstate
+
+Default workspace state
+
+terraform.tfstate.d/
+
+dev/
+
+terraform.tfstate
+
+prod/
+
+terraform.tfstate
+
+Each workspace maintains its own state. With remote backends, the state is stored remotely according to that backend's workspace implementation.
+
+### Destroying resources in a workspace
+
+```
+terraform workspace select dev
+terraform destroy
+```
+
+This destroys the resources tracked by the current workspace's state, not the resources tracked by the other workspaces.
+
+Important distinction:
+
+- `terraform destroy` destroys managed infrastructure in the current workspace.
+- `terraform workspace delete` deletes the workspace itself. It does not automatically destroy the infrastructure.
+- A workspace normally must have no managed resources before it can be deleted, unless you use the force option. Be careful: force deletion can leave infrastructure unmanaged.
+
+[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+
+GitHub+3
+
+### Are workspaces enough for production isolation?
+
+Not always. Workspaces separate state, but they still share the same configuration directory, provider configuration and potentially credentials and backend context.
+
+For critical production environments, separate accounts, permissions, backends and deployment pipelines are often safer than relying on workspaces alone.
+
+## 6. Separate folders vs workspaces
+
+| Feature                      | Separate folders                                | Workspaces                                  |
+| ---------------------------- | ----------------------------------------------- | ------------------------------------------- |
+| Configuration                | Separate directories                            | Same directory                              |
+| State                        | Separate state per folder                       | Separate state per workspace                |
+| Environment-specific changes | Easy to maintain independently                  | Can use `terraform.workspace` and variables |
+| Complexity                   | More duplicated files possible                  | Less duplication                            |
+| Production isolation         | Can be stronger with separate accounts/backends | State isolation only                        |
+
+Example folder structure:
 
 ```
 terraform/
 ├── dev/
 │   ├── main.tf
-│   ├── variables.tf
-│   └── dev.tfvars
+│   └── terraform.tfvars
 │
 └── prod/
     ├── main.tf
-    ├── variables.tf
-    └── prod.tfvars
+    └── terraform.tfvars
 ```
 
-Each directory has its own Terraform working directory and state.
+Practical recommendation: Use workspaces for simple environment separation, testing and proof-of-concept work. For important production systems, consider separate configurations and stronger account/backend isolation.
 
-Advantage: Clear separation.
+## 7. Quick revision
 
-Disadvantage: Some configuration may need to be duplicated or maintained through shared modules.
+| Concept               | Remember this                                                |
+| --------------------- | ------------------------------------------------------------ |
+| `count`               | Creates multiple resource instances using numeric indexes    |
+| `for_each`            | Creates multiple resource instances using keys or set values |
+| `each.key`            | Current map key or set member                                |
+| `each.value`          | Current value                                                |
+| `toset()`             | Converts a collection to a set and removes duplicates        |
+| Dynamic block         | Generates repeated nested configuration blocks               |
+| `local-exec`          | Executes on the Terraform machine                            |
+| `remote-exec`         | Executes on the remote machine                               |
+| `file` provisioner    | Copies files to the remote machine                           |
+| Connection block      | Defines how Terraform connects to a remote machine           |
+| State file            | Tracks Terraform-managed infrastructure                      |
+| Workspace             | Separate state instance for the same configuration directory |
+| `terraform.workspace` | Returns the current workspace name                           |
 
-### Solution 2: Terraform workspaces
+## 8. Interview questions
 
-Terraform workspaces allow you to use the same configuration with separate state instances.
+1. What is the difference between `count` and `for_each`?
+2. What is a dynamic block in Terraform?
+3. Can you use `for_each` and a dynamic block together?
+4. What is the difference between a resource-level `for_each` and a dynamic block?
+5. What are the three Terraform provisioners?
+6. What is the difference between `local-exec` and `remote-exec`?
+7. Why is an SSH connection block required for `remote-exec`?
+8. Why are Terraform provisioners considered a last resort?
+9. What problem do Terraform workspaces solve?
+10. What is the difference between separate folders and workspaces?
+11. Does deleting a workspace destroy its infrastructure?
+12. Are workspaces sufficient for isolating production environments?
 
-For example:
+## 9. The mental model to remember
 
-- `default`
-- `dev`
-- `prod`
+`for_each`
 
-Each workspace tracks its own resources in a separate state.
+Create multiple resources
 
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+Dynamic block
 
-GitHub+1
+Create multiple nested configurations
 
-## 7. Terraform workspace commands
+Provisioners
 
-| Command                           | Purpose                                 |
-| --------------------------------- | --------------------------------------- |
-| `terraform workspace list`        | Lists available workspaces              |
-| `terraform workspace show`        | Shows the current workspace             |
-| `terraform workspace new dev`     | Creates and switches to a new workspace |
-| `terraform workspace select prod` | Switches to an existing workspace       |
-| `terraform workspace delete dev`  | Deletes a workspace                     |
+Run commands or copy files during resource lifecycle
 
-### Example workflow
+Workspaces
 
-```
-# List workspaces
-terraform workspace list
+Maintain separate Terraform states for environments
 
-# Create development workspace
-terraform workspace new dev
+Original transcript: [DevOps Session — 26 October 2026](https://github.com/jeevanadv2000-pixel/python/blob/main/DevOps%20Session\(Morning\)%20transcript_2026-10-26_09.28.00.txt?utm_source=chatgpt.com)
 
-# Check current workspace
-terraform workspace show
-
-# Create production workspace
-terraform workspace new prod
-
-# Switch to development
-terraform workspace select dev
-
-# Preview changes
-terraform plan
-
-# Apply changes
-terraform apply
-```
-
-### Using terraform.workspace
-
-Terraform provides a built-in expression:
-
-```
-terraform.workspace
-```
-
-It returns the currently selected workspace name.
-
-Example:
-
-```
-resource "aws_s3_bucket" "app" {
-  bucket = "meridian-app-${terraform.workspace}"
-}
-```
-
-This generates different bucket names:
-
-| Workspace | Bucket name            |
-| --------- | ---------------------- |
-| default   | `meridian-app-default` |
-| dev       | `meridian-app-dev`     |
-| prod      | `meridian-app-prod`    |
-
-S3 bucket names must be globally unique, so production configurations should include an appropriate unique suffix as well.
-
-### Workspace state structure
-
-With the local backend, the state files are stored approximately like this:
-
-```
-terraform-project/
-├── terraform.tfstate
-└── terraform.tfstate.d/
-    ├── dev/
-    │   └── terraform.tfstate
-    └── prod/
-        └── terraform.tfstate
-```
-
-The default workspace uses the root `terraform.tfstate`; named workspaces have separate state files.
-
-### Mermaid diagram — workspace isolation
-
-\#chatgpt-mermaid-\_r_f4p\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_f4p\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f4p\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f4p\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_f4p\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f4p\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_f4p\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_f4p\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_f4p\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_f4p\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_f4p\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_f4p\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f4p\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f4p\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_f4p\_ p{margin:0;}#chatgpt-mermaid-\_r_f4p\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f4p\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f4p\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f4p\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_f4p\_ .label text,#chatgpt-mermaid-\_r_f4p\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f4p\_ .node rect,#chatgpt-mermaid-\_r_f4p\_ .node circle,#chatgpt-mermaid-\_r_f4p\_ .node ellipse,#chatgpt-mermaid-\_r_f4p\_ .node polygon,#chatgpt-mermaid-\_r_f4p\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_f4p\_ .rough-node .label text,#chatgpt-mermaid-\_r_f4p\_ .node .label text,#chatgpt-mermaid-\_r_f4p\_ .image-shape .label,#chatgpt-mermaid-\_r_f4p\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_f4p\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_f4p\_ .rough-node .label,#chatgpt-mermaid-\_r_f4p\_ .node .label,#chatgpt-mermaid-\_r_f4p\_ .image-shape .label,#chatgpt-mermaid-\_r_f4p\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_f4p\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_f4p\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f4p\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f4p\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_f4p\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_f4p\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f4p\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f4p\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f4p\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_f4p\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f4p\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f4p\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f4p\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_f4p\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f4p\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_f4p\_ .icon-shape,#chatgpt-mermaid-\_r_f4p\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f4p\_ .icon-shape p,#chatgpt-mermaid-\_r_f4p\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_f4p\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_f4p\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f4p\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_f4p\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_f4p\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_f4p\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_f4p\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_f4p\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_f4p\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f4p\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_f4p\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_f4p\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_f4p\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f4p\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_f4p\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_f4p\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f4p\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_f4p\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_f4p\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f4p\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_f4p\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f4p\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f4p\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f4p\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_f4p\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_f4p\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_f4p\_ .node rect,#chatgpt-mermaid-\_r_f4p\_ .node circle,#chatgpt-mermaid-\_r_f4p\_ .node ellipse,#chatgpt-mermaid-\_r_f4p\_ .node polygon,#chatgpt-mermaid-\_r_f4p\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f4p\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_f4p\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_f4p\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_f4p\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f4p\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}One Terraform configurationWorkspace selectiondefault workspacedev workspaceprod workspaceDefault stateDevelopment stateProduction state
-
-Important correction for real-world projects: Workspaces separate state, but they do not provide complete environment isolation. Workspaces generally share the same backend configuration and credentials context. For critical production environments, separate accounts, permissions, backends and deployment pipelines are often safer than relying only on workspaces.
-
-Also, deleting a workspace is not the same as destroying its infrastructure. Destroy resources in that workspace before deleting it.
-
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
-
-GitHub+1
-
-## 8. Quick revision — interview questions
-
-| Question                                         | Short answer                                                                                  |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| What is `for_each`?                              | Creates multiple resource instances using map keys or set elements.                           |
-| What is a dynamic block?                         | Generates repeated nested configuration blocks inside a resource.                             |
-| Difference between `for_each` and dynamic block? | One creates resources; the other creates nested blocks.                                       |
-| What is `each.value`?                            | The current value in a `for_each` iteration.                                                  |
-| What is `local-exec`?                            | Executes commands on the Terraform machine.                                                   |
-| What is `remote-exec`?                           | Executes commands on a remote machine.                                                        |
-| Why does remote-exec need a connection block?    | It needs connection details and authentication to access the remote server.                   |
-| Why are provisioners discouraged?                | They are harder to manage reliably than dedicated configuration tools.                        |
-| What is a Terraform workspace?                   | A separate state instance using the same Terraform configuration.                             |
-| Why use separate states?                         | To prevent changes in one environment from affecting another environment's managed resources. |
-| What does `terraform.workspace` return?          | The currently selected workspace name.                                                        |
-
-## 9. Final mental model
-
-| Concept          | Remember it as                                           |
-| ---------------- | -------------------------------------------------------- |
-| `count`          | Repeat similar resource instances                        |
-| `for_each`       | Create resources with distinct identities/configurations |
-| `dynamic`        | Repeat nested blocks inside a resource                   |
-| `remote-exec`    | Run commands on a remote server                          |
-| Ansible          | Configure and manage servers                             |
-| Separate folders | Separate Terraform working directories and states        |
-| Workspaces       | Same configuration, separate state instances             |
-
-Most important takeaway: Understand what you are repeating in Terraform. If you are repeating entire resources, use `count` or `for_each`. If you are repeating nested configuration inside one resource, use a dynamic block.
-
-Original transcript: [DevOps Session — 26 October 2026](https://github.com/jeevanadv2000-pixel/python/blob/main/DevOps%20Session%28Morning%29%20transcript_2026-10-26_09.28.00.txt?utm_source=chatgpt.com).
+Session complete. These notes cover the main technical topics and demonstrations from the transcript, with corrections and practical examples for revision.

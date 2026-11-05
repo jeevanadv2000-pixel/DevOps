@@ -1,235 +1,400 @@
-# DevOps Session — Ansible Fundamentals & Configuration Management
+# DevOps Session — Ansible Fundamentals
 
-Date: 30 October 2026\
-Instructor: Rochak Agrawal\
-Focus: Ansible architecture, inventory, playbooks, roles, modules, idempotency and execution workflow.
+Date: 30 October 2026 · Instructor: Rochak Agrawal
 
-Notes are condensed from the transcript. Repeated discussions and participant chatter have been removed, speech-to-text errors corrected, and important technical details clarified.
+Topics: Configuration management, Ansible architecture, agentless operation, push vs pull, inventory, modules, tasks, plays, playbooks, roles and facts.
 
-## 1. What is Configuration Management?
+The transcript is focused on Ansible. I’m correcting speech-recognition errors such as “Ensemble” to Ansible, “SSC” to SSH, and “BinRM” to WinRM, while clarifying concepts that were oversimplified during the lecture.
 
-Configuration management means automating the setup and maintenance of servers so that they remain consistent.
+## 1. Why do we need configuration management?
 
-For example, a company may need to configure hundreds of servers with:
+Imagine an organization has hundreds or thousands of servers. Each server needs software, runtime environments, security tools, users and service configurations.
 
-- Java, Python, NGINX and other runtimes.
-- Users, groups and permissions.
-- Security software and firewall settings.
-- Application configurations.
-- Services that must be running.
+Configuring every server manually creates several problems:
 
-### Why do we need it?
+| Problem             | Explanation                                                           |
+| ------------------- | --------------------------------------------------------------------- |
+| Configuration drift | Servers gradually become different because of manual changes          |
+| Human errors        | Repeated manual commands can introduce mistakes                       |
+| Time-consuming      | Configuring hundreds of servers individually takes time               |
+| No consistency      | Different administrators may configure servers differently            |
+| Poor documentation  | Manual fixes may not be recorded, making troubleshooting difficult    |
+| Scalability         | Manual configuration becomes difficult as the number of servers grows |
 
-| Problem             | Explanation                                                     |
-| ------------------- | --------------------------------------------------------------- |
-| Configuration drift | Servers gradually become different because of manual changes.   |
-| Human errors        | Repeating manual commands can introduce mistakes.               |
-| Time-consuming      | Configuring hundreds of servers individually is slow.           |
-| Poor documentation  | Manual fixes may not be recorded.                               |
-| Scalability         | Manual configuration becomes difficult as infrastructure grows. |
-
-Solution: Use configuration management tools such as Ansible, Puppet, Chef and Salt.
-
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
-
-GitHub+1
+Configuration management automates the process of maintaining consistent server configurations.
 
 ## 2. What is Ansible?
 
-Ansible is an open-source automation and configuration management tool sponsored by Red Hat.
+Ansible is an open-source automation tool used for:
 
-It helps automate tasks such as:
-
-- Installing packages.
+- Installing and configuring software.
 - Creating users and groups.
-- Managing files and permissions.
-- Starting and stopping services.
-- Deploying applications.
-- Configuring servers and some cloud resources.
+- Managing services.
+- Copying files and templates.
+- Executing commands.
+- Automating repetitive server administration tasks.
 
-Ansible uses YAML playbooks to describe the configuration you want.
+Ansible commonly connects to Linux servers using SSH and Windows servers using WinRM. It does not normally require an agent installed on the managed machines.
 
-### Ansible vs Shell Script
+### Ansible's key feature: Idempotency
 
-Suppose you want to create a Linux user named `deploy`.
+Idempotency means that running the same automation repeatedly produces the same desired end state without making unnecessary changes.
 
-A shell script might run:
+For example, consider creating a Linux user named `deploy`.
+
+A simple shell command:
 
 ```
 sudo useradd deploy
 ```
 
-- First execution: creates the user.
-- Second execution: may return an error because the user already exists.
+Running it again may return an error because the user already exists.
 
-Ansible can express the desired condition:
+Ansible's user module:
 
 ```
-- name: Create deploy user
+- name: Ensure deploy user exists
   ansible.builtin.user:
     name: deploy
     state: present
 ```
 
-- First execution: creates the user and reports `changed`.
-- Second execution: reports `ok` because the user already exists.
+| Run        | Expected result              |
+| ---------- | ---------------------------- |
+| First run  | `changed` — creates the user |
+| Second run | `ok` — user already exists   |
+| Later runs | `ok` — no unnecessary change |
 
-This behaviour is called idempotency.
+Ansible's desired-state approach
 
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+Desired state
 
-GitHub+1
+The deploy user must exist
 
-## 3. Why Ansible is popular
+Compare desired state with actual state
 
-| Feature            | Explanation                                                    |
-| ------------------ | -------------------------------------------------------------- |
-| Agentless          | No Ansible agent needs to be installed on managed Linux hosts. |
-| YAML               | Playbooks are relatively easy to read and understand.          |
-| Push-based         | The control node connects to managed nodes and sends tasks.    |
-| Idempotent         | Repeating tasks generally does not create unnecessary changes. |
-| Modules            | Provides reusable units of automation for specific operations. |
-| Parallel execution | Can manage multiple hosts concurrently.                        |
-| Integration        | Can be executed from Jenkins and other CI/CD pipelines.        |
+User missing
 
-Ansible Community Edition is free and command-line based. Red Hat Ansible Automation Platform adds enterprise capabilities such as a web interface, access control and scheduling.
+changed
 
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+Create user
 
-GitHub+2
+User exists
 
-## 4. Ansible Architecture
+ok
 
-Ansible has two important types of machines:
+No action needed
 
-- Control node: Machine where Ansible is installed and automation is initiated.
-- Managed nodes: Servers that Ansible connects to and configures.
+Important: Ansible is declarative in the sense that you describe the desired configuration, rather than writing every step needed to achieve it. Idempotency depends on using modules and tasks appropriately.
 
-[Ansible for Configuration Management: The 2026 Guide | CloudCops Resources](https://images.openai.com/static-rsc-4/KKiv737Jzm5lwWwpVBc0R1Dl7IFiBlPgzYCm5qcBNXug3vluWhN6qsIG5lU018Nh4_e66gHqzi3bxHYcLvdmW_SghcrVZK_19BmngD1zWJhmQFYpAauvtEEsO9Zk0XYDPwBJfmgXR-TAKitBASPGTyc2LKwZ-yJB0jUCXErCKZg?purpose=inline)
+## 3. Ansible architecture
 
-[resources.cloudcops.com](https://resources.cloudcops.com/blogs/ansible-for-configuration-management?utm_source=chatgpt.com)
+Ansible follows a control-node and managed-node architecture.
+
+| Component     | Meaning                                                                     |
+| ------------- | --------------------------------------------------------------------------- |
+| Control node  | Machine where Ansible is installed and executed                             |
+| Managed node  | Server or device Ansible manages                                            |
+| Inventory     | List of managed nodes, organized into groups                                |
+| Playbook      | YAML file containing one or more plays                                      |
+| Ansible Core  | Automation engine that executes playbooks and tasks                         |
+| `ansible.cfg` | Main Ansible configuration file                                             |
+| Module        | Reusable unit of work, such as installing a package                         |
+| Plugin        | Extends Ansible's functionality                                             |
+| Collection    | Distribution package containing modules, plugins, roles and related content |
+| Role          | Reusable, organized collection of tasks, variables, templates and handlers  |
+| Facts         | Information gathered about managed hosts                                    |
 
 ### Architecture diagram
 
-\#chatgpt-mermaid-\_r_f78\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_f78\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f78\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f78\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_f78\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f78\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_f78\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_f78\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_f78\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_f78\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_f78\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_f78\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f78\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f78\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_f78\_ p{margin:0;}#chatgpt-mermaid-\_r_f78\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f78\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f78\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f78\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_f78\_ .label text,#chatgpt-mermaid-\_r_f78\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f78\_ .node rect,#chatgpt-mermaid-\_r_f78\_ .node circle,#chatgpt-mermaid-\_r_f78\_ .node ellipse,#chatgpt-mermaid-\_r_f78\_ .node polygon,#chatgpt-mermaid-\_r_f78\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_f78\_ .rough-node .label text,#chatgpt-mermaid-\_r_f78\_ .node .label text,#chatgpt-mermaid-\_r_f78\_ .image-shape .label,#chatgpt-mermaid-\_r_f78\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_f78\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_f78\_ .rough-node .label,#chatgpt-mermaid-\_r_f78\_ .node .label,#chatgpt-mermaid-\_r_f78\_ .image-shape .label,#chatgpt-mermaid-\_r_f78\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_f78\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_f78\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f78\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f78\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_f78\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_f78\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f78\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f78\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f78\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_f78\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f78\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f78\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f78\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_f78\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f78\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_f78\_ .icon-shape,#chatgpt-mermaid-\_r_f78\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f78\_ .icon-shape p,#chatgpt-mermaid-\_r_f78\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_f78\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_f78\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f78\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_f78\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_f78\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_f78\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_f78\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_f78\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_f78\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f78\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_f78\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_f78\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_f78\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f78\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_f78\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_f78\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f78\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_f78\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_f78\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f78\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_f78\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f78\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f78\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f78\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_f78\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_f78\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_f78\_ .node rect,#chatgpt-mermaid-\_r_f78\_ .node circle,#chatgpt-mermaid-\_r_f78\_ .node ellipse,#chatgpt-mermaid-\_r_f78\_ .node polygon,#chatgpt-mermaid-\_r_f78\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f78\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_f78\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_f78\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_f78\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f78\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}Control NodeAnsible installedInventoryPlaybookAnsible Core / EngineSSH / WinRM / APIsWeb Server 1App Server 1Database Server 1
+Control node
 
-The control node contains the playbooks, inventory and Ansible execution engine. Managed nodes receive and execute the required tasks.
+Machine running Ansible
 
-Connection methods:
+Ansible Core
 
-| Target                     | Connection                           |
-| -------------------------- | ------------------------------------ |
-| Linux / Unix               | SSH                                  |
-| Windows                    | WinRM or PSRP                        |
-| Network and cloud services | APIs or supported connection plugins |
+Inventory
 
-Important correction: Windows management through Ansible generally uses WinRM or PSRP, not RDP. RDP is primarily for interactive remote desktop access.
+Playbooks
 
-For typical Linux managed nodes, Python is required for most Ansible modules. You do not need to learn Python programming to write ordinary Ansible playbooks.
+ansible.cfg
+
+SSH / WinRM / APIs
+
+Connection from control node
+
+Web 1
+
+Managed node
+
+App 1
+
+Managed node
+
+DB 1
+
+Managed node
+
+Important corrections to the lecture:
+
+- The control node is generally Linux-based. Supported control environments include Linux distributions and macOS; Windows users commonly use WSL.
+- Linux managed nodes normally use SSH.
+- Windows managed nodes commonly use WinRM or SSH. RDP is for interactive remote desktop access, not Ansible's usual automation transport.
+- Managed nodes do not normally need an Ansible agent installed.
+- Most POSIX managed-node modules require Python. Windows modules use PowerShell and do not have the same Python requirement.
+- Network devices and cloud APIs can also be managed through suitable Ansible modules and plugins.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+2
 
-## 5. Push vs Pull Architecture
+## 4. Agentless architecture
+
+Ansible is called agentless because it does not normally require a continuously running Ansible agent on every managed node.
+
+Compare it with traditional agent-based configuration management tools.
+
+| Tool      | Typical architecture                          |
+| --------- | --------------------------------------------- |
+| Ansible   | Agentless                                     |
+| Puppet    | Traditionally agent-based                     |
+| Chef      | Traditionally agent-based                     |
+| Salt      | Supports agent-based and agentless approaches |
+| Terraform | Agentless infrastructure provisioning         |
+
+### Agentless vs agent-based
+
+Ansible
+
+Agentless
+
+Control node
+
+SSH / WinRM
+
+Managed server
+
+No permanent Ansible agent
+
+Agent-based
+
+Agent required
+
+Central server
+
+Agent communication
+
+Managed server
+
+Agent installed
+
+Advantages of Ansible's agentless approach:
+
+- No separate agent installation and maintenance.
+- Easier initial setup.
+- Uses existing remote access mechanisms.
+- Can manage many different server types.
+
+Limitation: The control node still needs network access and valid authentication to the managed nodes. Agentless does not mean connectionless.
+
+## 5. Push vs pull architecture
 
 This is a common interview question.
 
-Push-based — Ansible
+| Feature            | Push                            | Pull                           |
+| ------------------ | ------------------------------- | ------------------------------ |
+| Who initiates?     | Central control node            | Agent on managed node          |
+| Configuration flow | Controller sends configuration  | Agent retrieves configuration  |
+| Agent required?    | Not normally for Ansible        | Typically yes                  |
+| Example            | Ansible                         | Traditional Puppet/Chef setups |
+| Main dependency    | Controller-to-node connectivity | Agent-to-server connectivity   |
 
-[\[Ansible\] 보안설정/모니터링 자동화, Semaphore (스터디 4주차) :: Ho_use](https://images.openai.com/static-rsc-4/Sh2vRyt2Nsaw_y8BaFQ4U4eBuRvknaYMNOkbssjNKgF5ycs29NzeEs6ctQnhOql2J_B2lp7XREs73JnY5FaJOCLt-UMIJord2DmCg3BbGgZ9u-w3I9mambyJU4sx4fXqw9qG2rzYwGpB8N5r6mR3VPotheDL8Dex6GdURXkpEso?purpose=inline)
+### Push architecture — Ansible
 
-[xn--vj5b11biyw.kr](https://xn--vj5b11biyw.kr/342?utm_source=chatgpt.com)
+Ansible control node
 
-- Control node initiates the connection.
-- Pushes automation tasks to managed nodes.
-- Usually uses SSH for Linux and WinRM/PSRP for Windows.
-- Requires connectivity when the automation runs.
+Push configuration over SSH / WinRM
 
-Pull-based — commonly Puppet and Chef
+Server 1
 
-[What is Puppet?](https://images.openai.com/static-rsc-4/W_EC0FUmTctm84mUGeUW2-6EhL0hHpcUNp0rQZbfM3qDqwhA1dhElzpZ26hsQYZP6BNsaHhw-_dawtPjTWt-GHOqhagwt1nB-H4kANhLTOaaNaUoQ3uo21LRdl94u9IBFAqpDVQzxqx6pGBEJCvaCRnIbT0YvTxI_dtdAdawt1c?purpose=inline)
+Server 2
 
-[help.puppet.com](https://help.puppet.com/core/current/Content/PuppetCore/what_is_puppet.htm?utm_source=chatgpt.com)
+Server 3
 
-- Agent is installed on managed nodes.
-- Agents retrieve configuration from a central server.
-- Requires the agent and its communication path to be available.
+### Pull architecture
 
-| Push                            | Pull                       |
-| ------------------------------- | -------------------------- |
-| Controller initiates connection | Agent initiates connection |
-| No target-side Ansible agent    | Requires target-side agent |
-| Example: Ansible                | Examples: Puppet and Chef  |
+Central configuration server
+
+Agents request configuration
+
+Agent 1
+
+Agent 2
+
+Agent 3
+
+Interview answer: In a push model, the controller initiates the connection and sends the configuration to managed nodes. In a pull model, agents on the managed nodes periodically contact a central server and retrieve their configuration.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+1
 
-## 6. Important Ansible Terminology
+## 6. Terraform vs Ansible
 
-These terms are essential before writing playbooks.
+The instructor explained that these tools have some overlapping capabilities, but their primary purposes are different.
 
-| Term         | Meaning                                                      | Example                      |
-| ------------ | ------------------------------------------------------------ | ---------------------------- |
-| Task         | One unit of work                                             | Install NGINX                |
-| Play         | Collection of tasks applied to selected hosts                | Configure web servers        |
-| Playbook     | YAML file containing one or more plays                       | `site.yml`                   |
-| Inventory    | List or source of managed hosts                              | Web and DB servers           |
-| Module       | Reusable unit that performs a specific operation             | `package`, `service`, `copy` |
-| Role         | Reusable package of tasks, variables, handlers and templates | Web server role              |
-| Facts        | Information collected about managed hosts                    | OS, IP, memory               |
-| Control node | Machine running Ansible                                      | Ansible controller           |
-| Managed node | Machine being configured                                     | EC2 instance                 |
+| Terraform                               | Ansible                                                  |
+| --------------------------------------- | -------------------------------------------------------- |
+| Infrastructure as Code                  | Configuration management and automation                  |
+| Creates VPCs, EC2, load balancers, etc. | Installs software and configures servers                 |
+| Uses HCL                                | Uses YAML playbooks                                      |
+| Uses providers                          | Uses modules and collections                             |
+| Tracks infrastructure using state       | Checks the current state on managed nodes when tasks run |
+| Commonly provisions infrastructure      | Commonly configures infrastructure after provisioning    |
 
-### Understand Task, Play and Playbook
+### Real-world workflow
 
-Imagine you want to configure NGINX on web servers.
+Terraform
 
-- Task 1: Install NGINX.
-- Task 2: Start NGINX.
-- Task 3: Copy configuration file.
-- Task 4: Enable the service.
+Create VPC, subnet, security group and EC2
 
-These tasks together form a Play targeting web servers.
+Ansible
 
-The YAML file containing this play is called a Playbook.
+Install NGINX, create users, copy files and configure services
 
-\#chatgpt-mermaid-\_r_f89\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_f89\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f89\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f89\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_f89\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f89\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_f89\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_f89\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_f89\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_f89\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_f89\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_f89\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f89\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f89\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_f89\_ p{margin:0;}#chatgpt-mermaid-\_r_f89\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f89\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f89\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f89\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_f89\_ .label text,#chatgpt-mermaid-\_r_f89\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f89\_ .node rect,#chatgpt-mermaid-\_r_f89\_ .node circle,#chatgpt-mermaid-\_r_f89\_ .node ellipse,#chatgpt-mermaid-\_r_f89\_ .node polygon,#chatgpt-mermaid-\_r_f89\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_f89\_ .rough-node .label text,#chatgpt-mermaid-\_r_f89\_ .node .label text,#chatgpt-mermaid-\_r_f89\_ .image-shape .label,#chatgpt-mermaid-\_r_f89\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_f89\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_f89\_ .rough-node .label,#chatgpt-mermaid-\_r_f89\_ .node .label,#chatgpt-mermaid-\_r_f89\_ .image-shape .label,#chatgpt-mermaid-\_r_f89\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_f89\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_f89\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f89\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f89\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_f89\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_f89\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f89\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f89\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f89\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_f89\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f89\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f89\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f89\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_f89\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f89\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_f89\_ .icon-shape,#chatgpt-mermaid-\_r_f89\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f89\_ .icon-shape p,#chatgpt-mermaid-\_r_f89\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_f89\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_f89\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f89\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_f89\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_f89\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_f89\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_f89\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_f89\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_f89\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f89\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_f89\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_f89\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_f89\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f89\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_f89\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_f89\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f89\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_f89\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_f89\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f89\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_f89\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f89\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f89\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f89\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_f89\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_f89\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_f89\_ .node rect,#chatgpt-mermaid-\_r_f89\_ .node circle,#chatgpt-mermaid-\_r_f89\_ .node ellipse,#chatgpt-mermaid-\_r_f89\_ .node polygon,#chatgpt-mermaid-\_r_f89\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f89\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_f89\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_f89\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_f89\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f89\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}PlaybookPlay 1: Web ServersPlay 2: App ServersPlay 3: Database ServersTask 1: Install NGINXTask 2: Start NGINXTask 3: Copy Configuration
+Configured application server
 
-### What is a Role?
+Ready to deploy
 
-A role is a reusable, structured collection of automation content.
+### Why not use Terraform provisioners for everything?
 
-For example, a `webserver` role can contain:
+The instructor gave an example:
 
-- Tasks to install and configure NGINX.
-- Variables for ports and package versions.
-- Templates for configuration files.
-- Handlers to restart NGINX when configuration changes.
+1. Terraform creates an EC2 instance.
+2. A provisioner installs NGINX version X.
+3. Two months later, you want NGINX version Y.
+4. Changing a provisioner can cause Terraform to replace the associated resource, depending on the lifecycle and resource changes.
+5. Replacing an EC2 instance could also affect attached infrastructure or data if not designed carefully.
 
-Instead of writing the same tasks in multiple playbooks, teams can reuse the role.
+With Ansible, you can update the NGINX version in the playbook and rerun it. Ansible checks the installed version and changes the package without needing to recreate the EC2 instance.
 
-Remember:
-
-- Task = One operation.
-- Play = Tasks applied to selected hosts.
-- Playbook = One or more plays.
-- Role = Reusable package of automation content.
+Practical takeaway: Use Terraform for infrastructure and Ansible for ongoing server configuration. Use Terraform provisioners only when there is a good reason and the lifecycle implications are understood.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
-GitHub+2
+GitHub+1
 
-## 7. Inventory — Static and Dynamic
+## 7. Ansible terminology — understand the hierarchy
 
-Inventory tells Ansible which machines it should manage.
+This is especially important because the instructor spent time answering questions about the difference between a task, play, playbook and role.
 
-### Static inventory
+| Term       | Meaning                                       | Example                          |
+| ---------- | --------------------------------------------- | -------------------------------- |
+| Module     | Performs one specific operation               | `user`, `copy`, `apt`, `service` |
+| Task       | Calls a module with arguments                 | Ensure NGINX is installed        |
+| Play       | Maps a set of tasks to selected hosts         | Configure web servers            |
+| Playbook   | YAML file containing one or more plays        | `site.yml`                       |
+| Role       | Reusable, organized package of automation     | `webserver` role                 |
+| Collection | Package of related modules, plugins and roles | `ansible.posix`                  |
 
-You manually provide the IP addresses or hostnames.
+### Hierarchy
 
-Example: `inventory.ini`
+Playbook
+
+site.yml
+
+Play 1 — Web servers
+
+Task 1 — Install NGINX
+
+Task 2 — Copy configuration
+
+Task 3 — Start service
+
+Modules
+
+apt · copy · service
+
+A playbook can contain multiple plays. For example:
+
+- Play 1: Configure web servers.
+- Play 2: Configure application servers.
+- Play 3: Configure database servers.
+
+### Example playbook
+
+```
+---
+- name: Configure web servers
+  hosts: webservers
+  become: true
+
+  tasks:
+    - name: Install NGINX
+      ansible.builtin.package:
+        name: nginx
+        state: present
+
+    - name: Start and enable NGINX
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+```
+
+In this example:
+
+- `name`: Human-readable description.
+- `hosts`: Which inventory group to target.
+- `become`: Request privilege escalation.
+- `tasks`: List of tasks to execute.
+- `ansible.builtin.package`: Module used to manage packages.
+- `state: present`: Ensure the package exists.
+- `state: started`: Ensure the service is running.
+- `enabled: true`: Start the service automatically at boot.
+
+### What is a role?
+
+A role is a reusable structure that organizes automation code.
+
+For example, if ten teams need to configure NGINX, instead of each team writing the same 100-line playbook, you can create a reusable `webserver` role and share it.
+
+Typical role structure:
+
+```
+webserver/
+├── defaults/
+│   └── main.yml
+├── files/
+├── handlers/
+│   └── main.yml
+├── tasks/
+│   └── main.yml
+├── templates/
+├── vars/
+│   └── main.yml
+└── meta/
+    └── main.yml
+```
+
+Remember: A role is not simply another name for a playbook. It is a reusable directory structure containing related automation components.
+
+[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+
+GitHub+1
+
+## 8. Inventory — static and dynamic
+
+An inventory is the list of hosts that Ansible manages.
+
+It can contain:
+
+- IP addresses or hostnames.
+- Host groups and child groups.
+- Host-specific variables.
+- Group-specific variables.
+
+### Static inventory example
 
 ```
 [webservers]
@@ -243,262 +408,359 @@ Example: `inventory.ini`
 192.168.1.30
 ```
 
-You can target only the web server group instead of all machines.
+Here, you manually specify the hosts.
 
 ### Dynamic inventory
 
-Useful when infrastructure changes frequently, such as AWS Auto Scaling environments.
+Consider AWS Auto Scaling:
 
-Instead of manually updating IP addresses, Ansible can retrieve the current hosts from a cloud provider using a dynamic inventory plugin.
+- EC2 instances are created automatically.
+- Instances may be terminated.
+- New instances receive different IP addresses.
+
+Maintaining IP addresses manually becomes difficult.
+
+Dynamic inventory allows Ansible to discover hosts from an external source such as AWS.
+
+AWS account
+
+EC2 instances / Auto Scaling groups
+
+Dynamic inventory plugin queries AWS
+
+Ansible inventory
+
+Discovers current managed hosts
+
+Run playbook against selected hosts
 
 | Static inventory                   | Dynamic inventory                               |
 | ---------------------------------- | ----------------------------------------------- |
 | Manually maintained                | Automatically discovers hosts                   |
 | Suitable for stable infrastructure | Suitable for frequently changing infrastructure |
-| IPs or hostnames entered manually  | Uses cloud APIs or other inventory sources      |
+| IPs and hostnames entered manually | Uses cloud APIs or other inventory sources      |
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+1
 
-## 8. Ansible Modules
+## 9. How Ansible executes a playbook
 
-A module is a small reusable unit that performs a specific operation.
+The instructor explained the execution process in detail.
 
-Think of Linux commands: `touch` creates a file, `cp` copies a file. Similarly, Ansible modules perform specific automation tasks.
+1
 
-| Module                    | Purpose                                   |
-| ------------------------- | ----------------------------------------- |
-| `ansible.builtin.user`    | Create or manage users                    |
-| `ansible.builtin.package` | Install or remove packages                |
-| `ansible.builtin.service` | Manage services                           |
-| `ansible.builtin.copy`    | Copy files                                |
-| `ansible.builtin.file`    | Manage files, directories and permissions |
-| `ansible.builtin.command` | Execute commands                          |
-| `ansible.builtin.ping`    | Test Ansible connectivity                 |
+Read playbook and inventory
 
-Modules are available through Ansible collections. You can also develop your own modules.
+Determine the selected hosts and tasks.
 
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+2
 
-GitHub+1
+Establish connection
 
-## 9. Terraform vs Ansible
+Connect to managed hosts using SSH, WinRM or another supported connection.
 
-Both tools have overlapping capabilities, but their primary purposes are different.
+3
 
-| Terraform                              | Ansible                                               |
-| -------------------------------------- | ----------------------------------------------------- |
-| Infrastructure provisioning            | Configuration management                              |
-| Creates EC2, VPC, load balancers, etc. | Installs packages, creates users, configures services |
-| Uses HCL                               | Uses YAML playbooks                                   |
-| Maintains state using a state file     | Checks actual host conditions when tasks execute      |
-| Uses providers and resources           | Uses inventories, plays and modules                   |
+Gather facts
 
-### Real-world workflow
+Collect operating system, IP, memory and other host information when fact gathering is enabled.
 
-Suppose you need to deploy an application on AWS.
+4
 
-1. Terraform creates the VPC, subnet, security group and EC2 instance.
-2. Ansible connects to the EC2 instance.
-3. Ansible installs Java and Tomcat.
-4. Ansible configures the application and starts services.
-5. Jenkins can trigger the automation as part of CI/CD.
+Transfer module and arguments
 
-\#chatgpt-mermaid-\_r_f90\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_f90\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f90\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f90\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_f90\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f90\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_f90\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_f90\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_f90\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_f90\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_f90\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_f90\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f90\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f90\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_f90\_ p{margin:0;}#chatgpt-mermaid-\_r_f90\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f90\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f90\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f90\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_f90\_ .label text,#chatgpt-mermaid-\_r_f90\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f90\_ .node rect,#chatgpt-mermaid-\_r_f90\_ .node circle,#chatgpt-mermaid-\_r_f90\_ .node ellipse,#chatgpt-mermaid-\_r_f90\_ .node polygon,#chatgpt-mermaid-\_r_f90\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_f90\_ .rough-node .label text,#chatgpt-mermaid-\_r_f90\_ .node .label text,#chatgpt-mermaid-\_r_f90\_ .image-shape .label,#chatgpt-mermaid-\_r_f90\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_f90\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_f90\_ .rough-node .label,#chatgpt-mermaid-\_r_f90\_ .node .label,#chatgpt-mermaid-\_r_f90\_ .image-shape .label,#chatgpt-mermaid-\_r_f90\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_f90\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_f90\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f90\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f90\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_f90\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_f90\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f90\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f90\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f90\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_f90\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f90\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f90\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f90\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_f90\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f90\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_f90\_ .icon-shape,#chatgpt-mermaid-\_r_f90\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f90\_ .icon-shape p,#chatgpt-mermaid-\_r_f90\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_f90\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_f90\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f90\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_f90\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_f90\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_f90\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_f90\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_f90\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_f90\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f90\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_f90\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_f90\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_f90\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f90\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_f90\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_f90\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f90\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_f90\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_f90\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f90\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_f90\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f90\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f90\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f90\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_f90\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_f90\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_f90\_ .node rect,#chatgpt-mermaid-\_r_f90\_ .node circle,#chatgpt-mermaid-\_r_f90\_ .node ellipse,#chatgpt-mermaid-\_r_f90\_ .node polygon,#chatgpt-mermaid-\_r_f90\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f90\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_f90\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_f90\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_f90\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f90\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}TerraformCreate AWS InfrastructureEC2 InstanceAnsibleInstall PackagesConfigure ServicesDeploy ApplicationApplication Running
+For many POSIX modules, transfer temporary module code to the managed node.
 
-### Why not use Terraform provisioners for everything?
+5
 
-Terraform provisioners can run commands on a server, but they are not a replacement for a dedicated configuration management tool.
+Execute module
 
-For example, changing an installation command inside a provisioner can cause resource replacement in some situations, depending on the resource and lifecycle. That can be risky for servers with attached storage.
+Perform the requested operation on the managed node.
 
-Ansible is better suited to repeatedly managing software and configuration on existing servers.
+6
 
-Interview answer: Terraform provisions infrastructure; Ansible configures it. They can overlap, but using each for its main purpose is generally a better design.
+Return result
 
-[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+Return status and task details to the control node.
 
-GitHub+2
+7
 
-## 10. How Ansible Executes a Playbook
+Clean up
 
-Understand this flow carefully.
+Remove temporary execution files where applicable.
 
-\#chatgpt-mermaid-\_r_f9b\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_f9b\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f9b\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_f9b\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_f9b\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f9b\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_f9b\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_f9b\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_f9b\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_f9b\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_f9b\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_f9b\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f9b\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f9b\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_f9b\_ p{margin:0;}#chatgpt-mermaid-\_r_f9b\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f9b\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f9b\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f9b\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_f9b\_ .label text,#chatgpt-mermaid-\_r_f9b\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f9b\_ .node rect,#chatgpt-mermaid-\_r_f9b\_ .node circle,#chatgpt-mermaid-\_r_f9b\_ .node ellipse,#chatgpt-mermaid-\_r_f9b\_ .node polygon,#chatgpt-mermaid-\_r_f9b\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_f9b\_ .rough-node .label text,#chatgpt-mermaid-\_r_f9b\_ .node .label text,#chatgpt-mermaid-\_r_f9b\_ .image-shape .label,#chatgpt-mermaid-\_r_f9b\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_f9b\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_f9b\_ .rough-node .label,#chatgpt-mermaid-\_r_f9b\_ .node .label,#chatgpt-mermaid-\_r_f9b\_ .image-shape .label,#chatgpt-mermaid-\_r_f9b\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_f9b\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_f9b\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f9b\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f9b\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_f9b\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_f9b\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f9b\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f9b\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f9b\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_f9b\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f9b\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f9b\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f9b\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_f9b\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_f9b\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_f9b\_ .icon-shape,#chatgpt-mermaid-\_r_f9b\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_f9b\_ .icon-shape p,#chatgpt-mermaid-\_r_f9b\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_f9b\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_f9b\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_f9b\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_f9b\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_f9b\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_f9b\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_f9b\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_f9b\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_f9b\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f9b\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_f9b\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_f9b\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_f9b\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f9b\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_f9b\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_f9b\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f9b\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_f9b\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_f9b\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f9b\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_f9b\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_f9b\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f9b\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_f9b\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_f9b\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_f9b\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_f9b\_ .node rect,#chatgpt-mermaid-\_r_f9b\_ .node circle,#chatgpt-mermaid-\_r_f9b\_ .node ellipse,#chatgpt-mermaid-\_r_f9b\_ .node polygon,#chatgpt-mermaid-\_r_f9b\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_f9b\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_f9b\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_f9b\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_f9b\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_f9b\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}Run ansible-playbookcommandRead Playbook and InventorySelect Target HostsConnect to HostsGather FactsSend Required ModulesExecute on Managed NodesReturn ResultsClean Up Temporary Files
+### Important points
 
-### Execution details
+- Modules normally perform their work on the managed node, not the control node.
+- Many POSIX modules use Python on the managed node.
+- Ansible gathers facts at the beginning of a play by default (`gather_facts: true`).
+- Fact gathering can be disabled using `gather_facts: false`.
+- Ansible does not maintain a Terraform-style infrastructure state file.
+- Modules inspect the current state and determine whether a change is necessary.
 
-1. Ansible reads the playbook and inventory.
-2. It selects the hosts specified in the play.
-3. It establishes connections to those hosts.
-4. It normally gathers facts about the hosts.
-5. It sends the required modules and arguments to the managed nodes.
-6. Modules execute on the target machines.
-7. Results are returned to the control node.
-8. Temporary execution files are cleaned up.
+### Ansible vs Terraform state
 
-Important: The actual configuration operation happens on the managed node, not on the control node.
+| Terraform                                                                         | Ansible                                             |
+| --------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Maintains a state file                                                            | Does not maintain a Terraform-style state file      |
+| Tracks managed resources                                                          | Inspects managed nodes when tasks execute           |
+| Compares configuration and recorded state, refreshing provider data as configured | Modules check actual conditions on the managed host |
+| Stores resource metadata in state                                                 | Returns task results such as `ok` and `changed`     |
 
-### Parallel execution
+For example, if an Ansible playbook ensures that a user exists:
 
-Ansible can execute tasks across multiple hosts concurrently.
+- First run: user is created, status `changed`.
+- Second run: user already exists, status `ok`.
+- If someone deletes the user manually, the next run creates it again.
 
-- The `forks` setting controls the maximum number of simultaneous worker processes.
-- The commonly used default is 5.
-- It can be configured in `ansible.cfg`.
-
-With the default linear strategy, Ansible completes a task across the active hosts before moving to the next task. It does not necessarily finish the entire play on one host before starting the next host.
+This is why Ansible is useful for maintaining the desired configuration repeatedly.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+2
 
-## 11. Facts and Fact Gathering
+## 10. Parallel execution and forks
 
-Facts are information Ansible collects about managed nodes.
+Ansible can manage multiple hosts in parallel.
+
+The `forks` setting controls the maximum number of hosts Ansible processes concurrently.
+
+| Setting       | Meaning                               |
+| ------------- | ------------------------------------- |
+| Default forks | 5                                     |
+| `forks = 10`  | Up to 10 hosts processed concurrently |
+| `forks = 20`  | Up to 20 hosts processed concurrently |
+
+You can configure this in `ansible.cfg`:
+
+```
+[defaults]
+forks = 10
+```
+
+Or specify it on the command line:
+
+```
+ansible-playbook -i inventory.ini site.yml -f 10
+```
+
+Important: The instructor's explanation that every task completes on every host before the next task begins describes Ansible's default `linear` strategy.
+
+For example:
+
+1. Install NGINX on all selected hosts.
+2. After that task completes across the hosts, start the next task.
+3. Start NGINX on all selected hosts.
+
+The `serial` option can limit the number of hosts processed in each batch. Other execution strategies, such as `free`, change the default task synchronization behavior.
+
+[image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
+
+GitHub
+
+## 11. Facts and fact gathering
+
+Facts are information Ansible collects about managed hosts.
 
 Examples:
 
-- Operating system and distribution.
-- IP addresses.
-- Memory.
-- Hostname.
-- Network interfaces.
-- System details.
+| Fact                           | Information                    |
+| ------------------------------ | ------------------------------ |
+| `ansible_distribution`         | Linux distribution             |
+| `ansible_distribution_version` | Distribution version           |
+| `ansible_default_ipv4`         | Default IPv4 interface details |
+| `ansible_hostname`             | Hostname                       |
+| `ansible_memtotal_mb`          | Total memory                   |
+| `ansible_processor_vcpus`      | Number of virtual CPUs         |
 
-Why are facts useful?
+### Why are facts useful?
 
-Imagine managing two servers:
+Imagine you have:
 
-- Ubuntu uses `apt` for package management.
-- Amazon Linux uses `dnf`.
+- One Ubuntu server.
+- One Amazon Linux server.
 
-Ansible can gather facts and use the appropriate package management behaviour for each operating system.
+Ubuntu uses `apt`, while Amazon Linux 2023 uses `dnf`.
 
-Facts are normally gathered automatically at the beginning of a play. You can disable this with `gather_facts: false` when appropriate.
+Facts allow your playbook to identify the operating system and make decisions accordingly.
 
-### Example
+### Run the fact-gathering command
 
 ```
-- name: Display host information
-  hosts: all
-  tasks:
-    - name: Print operating system
-      ansible.builtin.debug:
-        var: ansible_distribution
+ansible localhost -m ansible.builtin.setup
 ```
+
+This gathers and displays facts about the local machine.
+
+You can also gather facts for a group of hosts:
+
+```
+ansible webservers -m ansible.builtin.setup
+```
+
+Remember: Facts are gathered information about the host. Inventory tells Ansible which hosts to target; facts tell Ansible about those hosts.
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+1
 
-## 12. Idempotency — Very Important
+## 12. Installing Ansible
 
-Idempotency means running the same automation repeatedly produces the same desired result without unnecessary changes.
+The instructor demonstrated installation on an Ubuntu EC2 instance.
 
-Example: Create a user called `deploy`.
+The general Ubuntu installation sequence:
 
-| Execution  | Actual condition              | Ansible result             |
-| ---------- | ----------------------------- | -------------------------- |
-| First run  | User does not exist           | `changed` — creates user   |
-| Second run | User already exists           | `ok` — no change           |
-| Third run  | Someone manually deletes user | `changed` — recreates user |
+```
+# Update package information
+sudo apt update
 
-Ansible does not maintain a Terraform-style state file. It checks the current condition of the managed system and compares it with the condition described by the task.
+# Install Ansible
+sudo apt install ansible -y
 
-### Compare the three tools
+# Verify installation
+ansible --version
+```
 
-| Tool       | How it reconciles state                                        |
-| ---------- | -------------------------------------------------------------- |
-| Terraform  | Uses its state file and refresh/plan mechanisms                |
-| Kubernetes | Uses controllers to reconcile actual and desired cluster state |
-| Ansible    | Checks managed hosts when a playbook runs                      |
+Ansible is implemented in Python, but you do not need to become a Python programmer to use standard Ansible playbooks.
 
-Important distinction: Ansible does not continuously enforce configuration by default. You need to run the playbook again, schedule it or integrate it into an automation workflow.
+The session also discussed the languages used by some DevOps tools:
+
+| Tool       | Implementation language | Common user-facing configuration |
+| ---------- | ----------------------- | -------------------------------- |
+| Ansible    | Python                  | YAML                             |
+| Jenkins    | Java                    | Groovy / Jenkinsfile             |
+| Kubernetes | Go                      | YAML manifests                   |
+| Terraform  | Go                      | HCL                              |
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
-GitHub+2
+GitHub
 
-## 13. Ad-hoc Commands vs Playbooks
+## 13. Inventory commands and ad-hoc commands
 
-You do not always need to create a YAML playbook. For simple one-time operations, Ansible supports ad-hoc commands.
+### What are ad-hoc commands?
 
-### Ad-hoc command
+Ad-hoc commands allow you to execute a single task without creating a playbook.
 
-Example: Create a file on localhost.
-
-```
-ansible localhost -m ansible.builtin.file \
-  -a "path=/tmp/file.txt state=touch" \
-  -c local
-```
-
-Here:
-
-- `localhost` = target machine.
-- `-m` = module to execute.
-- `ansible.builtin.file` = file module.
-- `-a` = module arguments.
-- `state=touch` = create the file if needed.
-
-To delete the file:
+General syntax:
 
 ```
-ansible localhost -m ansible.builtin.file \
-  -a "path=/tmp/file.txt state=absent" \
-  -c local
+ansible <host-pattern> -m <module> -a "<arguments>"
 ```
 
-### Ad-hoc vs Playbook
+| Part             | Meaning                        |
+| ---------------- | ------------------------------ |
+| `ansible`        | Ansible command                |
+| `<host-pattern>` | Host or group to target        |
+| `-m`             | Module to execute              |
+| `-a`             | Arguments passed to the module |
 
-| Ad-hoc command                         | Playbook                               |
-| -------------------------------------- | -------------------------------------- |
-| Single, quick operation                | Multiple organized tasks               |
-| Executed directly in terminal          | Written in YAML                        |
-| Useful for testing and troubleshooting | Useful for repeatable automation       |
-| Less structured                        | Easier to maintain and version-control |
+### Example: Create a file
+
+```
+ansible localhost \
+  -m ansible.builtin.file \
+  -a "path=/tmp/file.txt state=touch"
+```
+
+This creates an empty file at `/tmp/file.txt`.
+
+### Example: Delete a file
+
+```
+ansible localhost \
+  -m ansible.builtin.file \
+  -a "path=/tmp/file.txt state=absent"
+```
+
+### Example: Ping all inventory hosts
+
+```
+ansible all -m ansible.builtin.ping
+```
+
+This checks Ansible connectivity and module execution. It is not the same as sending an ICMP network ping.
+
+### Useful commands
+
+| Command                              | Purpose                                         |
+| ------------------------------------ | ----------------------------------------------- |
+| `ansible --version`                  | Shows installed version and configuration paths |
+| `ansible all -m ping`                | Tests connectivity to inventory hosts           |
+| `ansible localhost -m setup`         | Gathers local facts                             |
+| `ansible-inventory --list`           | Displays inventory in JSON                      |
+| `ansible-inventory --graph`          | Displays inventory groups                       |
+| `ansible-inventory --list-hosts all` | Lists hosts matching a pattern                  |
+| `ansible-doc ansible.builtin.file`   | Displays module documentation                   |
 
 [image](https://www.google.com/s2/favicons?domain=https://raw.githubusercontent.com\&sz=32)
 
 GitHub+1
 
-## 14. Quick Revision — Interview Questions
+## 14. Quick revision
 
-| Question                                      | Short answer                                                  |
-| --------------------------------------------- | ------------------------------------------------------------- |
-| What is Ansible?                              | Agentless automation and configuration management tool.       |
-| What is a control node?                       | Machine where Ansible is installed and runs.                  |
-| What is a managed node?                       | Machine configured by Ansible.                                |
-| What is a playbook?                           | YAML file containing one or more plays.                       |
-| What is a task?                               | A single unit of automation.                                  |
-| What is a module?                             | A reusable unit that performs a particular operation.         |
-| What is a role?                               | Reusable package of tasks, variables, handlers and templates. |
-| What is inventory?                            | List or source of managed hosts.                              |
-| What is dynamic inventory?                    | Automatically discovers hosts from sources such as AWS.       |
-| What is idempotency?                          | Repeated execution does not make unnecessary changes.         |
-| Does Ansible use a state file like Terraform? | No. It checks the managed host when tasks run.                |
-| What is fact gathering?                       | Collecting system information from managed hosts.             |
-| What is the default forks value?              | Commonly 5.                                                   |
-| Can Ansible integrate with Jenkins?           | Yes, Jenkins can execute Ansible playbooks in a pipeline.     |
+| Question                   | Answer                                                 |
+| -------------------------- | ------------------------------------------------------ |
+| What is Ansible?           | Automation and configuration management tool           |
+| Is Ansible agentless?      | Yes, for its usual managed-node architecture           |
+| What is a control node?    | Machine where Ansible runs                             |
+| What is a managed node?    | Machine or device Ansible manages                      |
+| What is an inventory?      | List of managed hosts                                  |
+| What is a module?          | Unit of work that performs a specific operation        |
+| What is a task?            | A module invocation with arguments                     |
+| What is a play?            | Tasks mapped to a group of hosts                       |
+| What is a playbook?        | YAML file containing one or more plays                 |
+| What is a role?            | Reusable, organized automation package                 |
+| What are facts?            | Information collected about managed hosts              |
+| What is idempotency?       | Repeated execution does not create unnecessary changes |
+| What is an ad-hoc command? | One-time task executed without a playbook              |
+| What is dynamic inventory? | Inventory discovered from an external source           |
+| What are forks?            | Maximum concurrent hosts processed by Ansible          |
 
-## 15. Mental Model
+## 15. Interview questions
 
-Remember these five points:
+1. What is configuration management and why is it needed?
+2. What is Ansible and why is it called agentless?
+3. What is the difference between push and pull architecture?
+4. What is the difference between a control node and managed node?
+5. What is the difference between a task, play, playbook and role?
+6. What is the difference between a module and a collection?
+7. What is inventory? Explain static and dynamic inventory.
+8. How does Ansible execute a playbook?
+9. What are Ansible facts and why are they useful?
+10. How does Ansible achieve idempotency without maintaining a state file?
+11. How does Ansible execute tasks across multiple hosts?
+12. What is the purpose of forks?
+13. Why should you use Ansible instead of Terraform provisioners for ongoing configuration management?
+14. Can Ansible manage AWS resources and on-premises servers?
 
-1. Terraform — Creates infrastructure.
-2. Ansible — Configures servers.
-3. Inventory — Identifies which servers to manage.
-4. Playbook — Describes what configuration to apply.
-5. Modules — Perform the actual operations.
+## 16. Final mental model
 
-One-line workflow
+Inventory
 
-## Terraform → EC2 → Ansible → Application Configuration
+Which machines should I manage?
 
-This is the basic infrastructure-to-configuration workflow used in many DevOps environments.
+Playbook
+
+What configuration do I want?
+
+Plays and tasks
+
+Which tasks should run on which hosts?
+
+Modules
+
+Perform the actual operations
+
+Managed nodes
+
+Configured servers
+
+One-line summary: Terraform creates the infrastructure; Ansible configures and maintains the servers running on that infrastructure.
 
 Original transcript: [DevOps Session — 30 October 2026](https://github.com/jeevanadv2000-pixel/python/blob/main/DevOps%20Session\(Morning\)%20transcript_2026-10-30_09.24.55.txt?utm_source=chatgpt.com)
 
-Session complete: This class introduced Ansible fundamentals and its execution model. The next useful step is hands-on practice: install Ansible, create an inventory, write a playbook and configure a managed EC2 instance.
+Session complete
+
+The notes now cover the full transcript, including the lecture, student questions, installation demonstration, inventory, facts and ad-hoc commands.
