@@ -1,498 +1,921 @@
-# Azure Notes – 3 November 2026
+# Azure Virtual Machines (VMs) in Azure
 
-Topic: Azure Virtual Machines (VMs) – Planning, Pricing, Storage and Creation\
-Instructor: Rochak Agrawal
+## Overview
 
-These notes use Rochak's main teaching sections only. I've excluded participant questions and the discussions that followed them, including instructor replies prompted by those questions. I've also corrected obvious transcript errors and clarified a few Azure-specific details.
+This session focused on:
 
-## 1. Cloud service models and shared responsibility
+- Virtual Machines (VMs)
+- IaaS, PaaS, SaaS
+- Shared Responsibility Model
+- VM Planning
+- VM Sizing
+- Azure Pricing Models
+- Managed Disks
+- Availability Zones
+- Availability Sets
+- Fault Domains & Update Domains
+- Virtual Machine Scale Sets (VMSS)
+- Spot VMs
+- VM Connectivity and Management
 
-Azure services generally fall into three service models:
+---
 
-| Model | Meaning                     | What you manage                                                   |
-| ----- | --------------------------- | ----------------------------------------------------------------- |
-| IaaS  | Infrastructure as a Service | OS, runtime, applications, data and access                        |
-| PaaS  | Platform as a Service       | Applications, data and access; Azure manages more of the platform |
-| SaaS  | Software as a Service       | Primarily how you use and configure the software                  |
+# Cloud Service Models
 
-With IaaS, Azure manages the physical datacentre, servers, storage and networking. You manage the virtual machine's operating system and the software running on it.
+Azure supports three primary cloud service models:
 
-Shared responsibility – simplified
+| Service Model | Description |
+|--------------|-------------|
+| IaaS | Infrastructure as a Service |
+| PaaS | Platform as a Service |
+| SaaS | Software as a Service |
 
-On-premises
+---
 
-You manage the entire stack, including physical infrastructure.
+# Shared Responsibility Model
 
-IaaS – Azure Virtual Machine
+## On-Premises
 
-Azure: physical infrastructure
+You manage everything:
 
-You: OS and everything above it
+- Networking
+- Storage
+- Physical Servers
+- Virtualization
+- Operating System
+- Runtime
+- Applications
+- Data
 
-PaaS / SaaS
+---
 
-Azure manages progressively more of the underlying stack.
+## IaaS (Virtual Machine)
 
-Lift and shift: When migrating an application from an on-premises environment to Azure with minimal application changes, IaaS VMs are often a suitable option. This migration approach is also called rehosting.&#x20;
+Azure manages:
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+- Physical Infrastructure
+- Networking
+- Storage
+- Compute Hardware
 
-GitHub+1
+You manage:
 
+- Operating System
+- Runtime
+- Applications
+- Data
+- User Access
 
+---
 
-## 2. Common use cases for Azure VMs
+## Shared Responsibility Diagram
 
-- Development and testing environments.
-- Hosting websites and applications.
-- Backup and recovery workloads.
-- High-performance computing and data analysis.
-- Extending an organisation's datacentre capacity.
+```mermaid
+flowchart TB
 
-A VM is useful when you need control over the operating system and the software environment.&#x20;
+Azure[Azure Responsibility]
+Customer[Customer Responsibility]
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+Azure --> Networking
+Azure --> Storage
+Azure --> Compute
 
-GitHub+1
+Customer --> OperatingSystem
+Customer --> Runtime
+Customer --> Applications
+Customer --> Data
+Customer --> Access
+```
 
+---
 
+# Why Use Virtual Machines?
 
-## 3. Plan before creating a VM
+## Common Use Cases
 
-A VM should not be created by choosing a size and clicking Create immediately. Consider these factors first:
+- Lift & Shift Migration
+- Development Environments
+- Test Environments
+- Hosting Websites
+- Application Servers
+- Backup & Recovery
+- Big Data Processing
+- High Performance Computing
 
-| Planning area    | What to decide                                                                 |
-| ---------------- | ------------------------------------------------------------------------------ |
-| Network          | Which VNet and subnet will the VM use? Which systems must it communicate with? |
-| Name             | Use a meaningful naming convention to identify its purpose and environment.    |
-| Region           | Consider cost, compliance, user location and proximity to related resources.   |
-| Size             | Choose sufficient CPU, RAM and capacity for the workload.                      |
-| Pricing          | Pay-as-you-go or a reservation, depending on expected usage.                   |
-| Storage          | OS disk, data disks, capacity and performance requirements.                    |
-| Operating system | Linux, Windows or a custom image.                                              |
+---
 
-Network planning matters: The VM may need to communicate with a database, another application server, the internet or external APIs. Check network placement and connectivity before deployment.&#x20;
+# Lift and Shift Migration
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+When migrating from on-premises infrastructure to Azure:
 
-GitHub+2
+```mermaid
+flowchart LR
 
+OnPrem[On-Prem VM] --> AzureVM[Azure Virtual Machine]
+```
 
+### Benefits
 
-## 4. VM location, size and pricing
+✅ Minimal changes to application
 
-### 4.1 Choosing a region
+✅ Faster migration
 
-Azure allows you to deploy resources in different geographical regions. Consider:
+✅ Lower migration effort
 
-- Cost: Pricing can vary by region.
-- Compliance: Some organisations must keep data in specific geographical locations.
-- User base: Choose a region that provides suitable latency for users.
-- Related resources: Keeping communicating resources in compatible regions can help reduce latency and simplify architecture.
+---
 
-For example, if an application uses a load balancer in East US, consider deploying its VM in the same region, subject to the service's regional requirements.&#x20;
+# VM Planning Checklist
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+Before creating a VM:
 
-GitHub
+1. Network Planning
+2. VM Naming
+3. Region Selection
+4. VM Size Selection
+5. Pricing Model
+6. Storage Planning
+7. OS Selection
+8. Availability Requirements
 
+---
 
+# Network Planning
 
-### 4.2 Choosing VM size
+VMs are deployed inside a network.
 
-VM size determines the compute capacity available to the workload, including CPU and memory. Choose a size based on:
+Without proper networking:
 
-- Application requirements.
-- Expected number of users and requests.
-- Development versus production workload.
-- Cost and performance requirements.
+- Applications cannot communicate
+- Databases become inaccessible
+- APIs cannot be reached
 
-For example, a development VM with little traffic may need fewer resources than a production VM serving many users.&#x20;
+---
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+## Example
 
-GitHub+1
+```mermaid
+flowchart LR
 
+WebServer --> Database
+WebServer --> API
+API --> ExternalService
+```
 
+Without network connectivity, communication fails.
 
-### 4.3 VM pricing models
+---
 
-| Pricing model             | Explanation                                                           | Suitable for                        |
-| ------------------------- | --------------------------------------------------------------------- | ----------------------------------- |
-| Pay-as-you-go (on-demand) | Pay for compute usage without making a long-term commitment.          | Variable or short-term workloads    |
-| Reservations              | Commit to eligible VM usage for a term to receive discounted pricing. | Predictable, long-running workloads |
+# VM Naming Convention
 
-The instructor mentioned that reservations can offer substantial discounts compared with on-demand pricing. The actual discount depends on the VM, region, term and purchase conditions; do not treat the quoted maximum as guaranteed.&#x20;
+Good naming practices:
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+```text
+IND-DEV-PAYROLL-01
+```
 
-GitHub+1
+Meaning:
 
+| Part | Meaning |
+|--------|----------|
+| IND | India Region |
+| DEV | Development Environment |
+| PAYROLL | Application Name |
+| 01 | Instance Number |
 
+---
 
-## 5. VM naming convention
+# Region Selection
 
-Use meaningful names so administrators can identify a VM's purpose when an environment contains many machines.
+Important factors:
 
-Example from the instructor's explanation:
+| Factor | Reason |
+|----------|--------|
+| User Location | Lower Latency |
+| Compliance | Regulatory Requirements |
+| Cost | Region Pricing Differences |
+| Existing Resources | Keep related resources together |
 
-`India-01-App-Payroll-Dev`
+---
 
-| Part    | Meaning                   |
-| ------- | ------------------------- |
-| India   | Location                  |
-| 01      | Instance number           |
-| App     | Workload type             |
-| Payroll | Application or department |
-| Dev     | Environment               |
+# VM Sizing
 
-This is a recommended naming approach, not a mandatory Azure naming format.&#x20;
+VM size determines:
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+- CPU
+- RAM
+- Performance
+- Cost
 
-GitHub
+---
 
+## Example
 
+| Usage | Recommended Size |
+|----------|----------------|
+| Development | Small VM |
+| Production | Larger VM |
+| Heavy Traffic Apps | High CPU/RAM VM |
 
-## 6. VM storage
+---
 
-A VM commonly uses an OS disk and can have additional data disks.
+# Azure Pricing Models
 
-Azure Virtual Machine storage
+## 1. Pay-As-You-Go
 
-Virtual Machine
+Default pricing model.
 
-OS Disk
+Pay only for actual usage.
 
-Contains the operating system and boot files.
+```mermaid
+flowchart LR
 
-Required
+StartVM --> UseVM --> PayOnlyForUsage
+```
 
-Data Disk
+### Characteristics
 
-Additional storage for application files and data.
+✅ No commitment
 
-Optional
+✅ Flexible
 
-| Feature                     | OS disk                                          | Data disk                                                |
-| --------------------------- | ------------------------------------------------ | -------------------------------------------------------- |
-| Purpose                     | Stores the operating system                      | Stores application and other data                        |
-| Required                    | Yes                                              | No                                                       |
-| Can be detached and reused? | Possible, subject to OS disk and VM requirements | Yes, subject to disk compatibility and attachment limits |
-| Deletion with VM            | Depends on delete option                         | Depends on delete option                                 |
+✅ Ideal for testing
 
-Important correction: The instructor described the OS disk as automatically deleted with the VM. In practice, Azure's delete behaviour depends on the disk's configured delete option and how the VM was created. Check the setting rather than assuming every disk is deleted. Data disks can also remain after VM deletion and continue to incur charges.&#x20;
+---
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+## 2. Reserved Instances
 
-GitHub+2
+Commit resources for a longer duration.
 
+Azure offers discounts.
 
+### Benefits
 
-### Data disk example
+- Up to 70% cost savings
+- Suitable for long-running workloads
+- Predictable usage
 
-Think of a data disk as an external hard drive:
+---
 
-1. Create or attach a data disk to a VM.
-2. Store application data on it.
-3. Detach it when required.
-4. Attach it to another compatible VM.
+# VM Storage Components
 
-A data disk can be created empty or from a snapshot. A snapshot is a point-in-time copy of a disk that can be used to create or restore a disk.&#x20;
+Every VM contains:
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+```mermaid
+flowchart TD
 
-GitHub+1
+VM --> OSDisk
+VM --> DataDisk1
+VM --> DataDisk2
+VM --> DataDisk3
+```
 
+---
 
+# OS Disk
 
-## 7. Understanding VM costs
+Created automatically with VM.
 
-The instructor highlighted two major cost components:
+Characteristics:
 
-Total VM-related cost
+✅ Contains Operating System
 
-Compute cost
+✅ Deleted when VM is deleted
 
-VM processing capacity and running time
+✅ Required for VM startup
 
-## +
+---
 
-Storage cost
+# Data Disk
 
-OS disks, data disks and their provisioned capacity/performance
+Additional storage attached to VM.
 
-### Running, stopped and deallocated
+Characteristics:
 
-This is an important interview topic. Azure distinguishes between a VM that is merely stopped and one that is deallocated.
+✅ Stores application data
 
-| VM state              | Compute charges | Disk/storage charges |
-| --------------------- | --------------- | -------------------- |
-| Running               | Yes             | Yes                  |
-| Stopped (allocated)   | Yes             | Yes                  |
-| Stopped (deallocated) | No              | Yes                  |
+✅ Can be detached
 
-Remember: Stopping a VM from inside its operating system does not necessarily deallocate it. To stop compute billing, ensure its state is Stopped (deallocated) in Azure. Disks and some networking resources can still incur charges.&#x20;
+✅ Can be attached to another VM
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+✅ Persists after VM deletion (optional)
 
-GitHub+2
+---
 
+# Managed Disk Types
 
+```mermaid
+flowchart TD
 
-## 8. Azure VM size families
+ManagedDisk --> OSDisk
+ManagedDisk --> DataDisk
+```
 
-Azure offers different VM families for different workloads. Choose based on the workload's resource requirements.
+---
 
-| Family type                | Main strength                                    | Typical workloads                                       |
-| -------------------------- | ------------------------------------------------ | ------------------------------------------------------- |
-| General purpose            | Balanced CPU and memory                          | Development, testing, web servers                       |
-| Compute optimized          | High CPU-to-memory ratio                         | Application servers, batch processing                   |
-| Memory optimized           | High memory-to-CPU ratio                         | Large caches, in-memory analytics, relational databases |
-| Storage optimized          | High disk throughput and I/O                     | Large databases, Big Data, data warehousing             |
-| GPU optimized              | GPU acceleration                                 | Graphics, video rendering, compute-intensive workloads  |
-| High-performance computing | High-performance CPU and networking capabilities | Scientific computing and demanding compute workloads    |
+# VM Cost Components
 
-Examples of Azure VM families discussed in the class include:
+VM cost consists of two parts.
 
-- B and D: General purpose.
-- F: Compute optimized.
-- E: Memory optimized.
-- L: Storage optimized.
-- N: GPU optimized.
+```mermaid
+flowchart TD
 
-These are broad family associations, not an exhaustive or permanent list. Always check the current VM size documentation because available series and features change.&#x20;
+TotalCost --> ComputeCost
+TotalCost --> StorageCost
+```
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+---
 
-GitHub+2
+## Compute Cost
 
+Based on:
 
+- CPU
+- RAM
+- Running Duration
 
-How to choose a VM family
+---
 
-Understand the workload
+## Storage Cost
 
-Balanced needs
+Based on:
 
-General purpose
+- OS Disk
+- Data Disks
+- Allocated Storage
 
-CPU intensive
+---
 
-Compute optimized
+# VM States and Billing
 
-Memory intensive
+| State | Compute Billing | Storage Billing |
+|---------|----------------|----------------|
+| Running | Yes | Yes |
+| Stopped | No | Yes |
+| Deleted | No | Depends |
 
-Memory optimized
+---
 
-Disk intensive
+# VM Families
 
-Storage optimized
+Azure provides specialized VM families.
 
-GPU and HPC families are specialised options for accelerated and high-performance workloads.
+---
 
-You do not need to memorise every VM series. Understand the workload categories and use Microsoft's VM size documentation to select a suitable size.&#x20;
+## General Purpose
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+Balanced CPU and RAM.
 
-GitHub+1
+Examples:
 
+- D Series
+- B Series
 
+Best For:
 
-## 9. Creating a VM through Azure Portal
+- Web Applications
+- Small Databases
+- General Workloads
 
-The instructor demonstrated the VM creation wizard. The main configuration stages are:
+---
 
-1. Basics
-   - Select subscription and Resource Group.
-   - Enter VM name.
-   - Choose region.
-   - Select availability options.
-   - Choose an operating system image.
-   - Select VM size.
-   - Configure administrator credentials.
-   - Configure inbound ports.
-2. Disks
-   - Review the OS disk.
-   - Create and attach a new data disk or attach an existing disk.
-   - Configure disk size and source.
-   - Decide whether a data disk should be deleted with the VM.
-   - Review encryption and caching options.
-3. Networking
-   - Select an existing VNet and subnet, or create new ones.
-   - Review the Network Interface.
-   - Configure public IP and Network Security Group settings as required.
-4. Management
-   - Configure backup.
-   - Consider disaster recovery.
-   - Configure guest updates and monitoring.
-   - Set up alerts where needed.
-5. Review + Create
-   - Azure validates the configuration.
-   - Review warnings and configuration details.
-   - Select Create to start deployment.
+## Compute Optimized
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+High CPU-to-RAM ratio.
 
-GitHub+4
+Best For:
 
-### Operating system images
+- Web Servers
+- Batch Processing
+- Application Servers
 
-An image provides the operating system and its initial configuration used to create a VM.
+---
 
-Examples include:
+## Memory Optimized
 
-- Windows Server images.
-- Linux distributions.
-- Marketplace images from software vendors.
-- Custom images created by an organisation.
+High RAM-to-CPU ratio.
 
-For example, selecting a Windows image creates a Windows-based VM.&#x20;
+Best For:
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+- Caching
+- Analytics
+- In-Memory Databases
 
-GitHub
+---
 
+## Storage Optimized
 
+Best For:
 
-### Network security and ports
+- Large Databases
+- Heavy Disk Workloads
 
-The VM's inbound access is controlled by network security rules. Allow only the ports required for the workload.
+---
 
-| Protocol / service           | Default port |
-| ---------------------------- | ------------ |
-| SSH – Linux administration   | 22           |
-| RDP – Windows administration | 3389         |
-| HTTP                         | 80           |
-| HTTPS                        | 443          |
+## GPU Optimized
 
-For a Linux VM, SSH is commonly required; for a Windows VM, RDP is commonly required. Avoid exposing management ports to the entire internet when a restricted source IP, VPN or other secure access method can be used.&#x20;
+Best For:
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+- AI/ML
+- Video Rendering
+- Gaming
 
-GitHub+2
+---
 
+## High Performance Computing (HPC)
 
+Best For:
 
-## 10. Backup vs Disaster Recovery
+- Scientific Computing
+- AI Training
+- Big Data
 
-These two concepts serve different purposes.
+---
 
-| Feature      | Azure Backup                                                                     | Azure Site Recovery                             |
-| ------------ | -------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Main purpose | Protect data and recover from accidental deletion, corruption or other data loss | Keep workloads recoverable during major outages |
-| Approach     | Creates and retains backups                                                      | Replicates workloads to a recovery location     |
-| Recovery     | Restore from a recovery point                                                    | Fail over to a replicated VM                    |
-| Main goal    | Data protection                                                                  | Business continuity and disaster recovery       |
+# VM Family Overview
 
-Backup
+```mermaid
+mindmap
+  root((VM Families))
+    General Purpose
+    Compute Optimized
+    Memory Optimized
+    Storage Optimized
+    GPU
+    HPC
+```
 
-VM → Backup recovery point
+---
 
-Restore data or the VM when needed.
+# Creating a Virtual Machine
 
-Disaster recovery
+## Required Information
 
-Primary VM → Replication → Secondary region
+| Field | Description |
+|---------|-------------|
+| Subscription | Billing Boundary |
+| Resource Group | Resource Container |
+| VM Name | VM Identification |
+| Region | Deployment Location |
+| Image | Operating System |
+| Size | CPU & RAM |
+| Credentials | Access Details |
 
-Initiate failover to run the workload at the recovery location.
+---
 
-Important correction: Site Recovery does not simply and automatically create a replacement VM whenever the primary region fails. Replication must be configured beforehand, and failover is an operation that must be initiated according to the recovery plan.&#x20;
+# VM Creation Components
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+When Azure creates a VM, it automatically creates:
 
-GitHub+3
+```mermaid
+flowchart TD
 
+VM --> NetworkInterface
+VM --> PublicIP
+VM --> NetworkSecurityGroup
+VM --> OSDisk
+VM --> VirtualNetwork
+```
 
+---
 
-## 11. Other resources created with a VM
+# VM Images
 
-Creating a VM can also create supporting Azure resources, depending on the selected configuration.
+An Image is a template used to create VMs.
 
-Examples demonstrated by the instructor:
+Examples:
 
-- Network Security Group (NSG).
-- Public IP address.
-- Network Interface (NIC).
-- Virtual Network and subnet.
-- OS disk and any configured data disks.
+- Windows Server
+- Ubuntu
+- Red Hat
+- Palo Alto Appliance
 
-This is why VM creation is not necessarily the creation of only one Azure resource.&#x20;
+---
 
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+## Image Concept
 
-GitHub
+```mermaid
+flowchart LR
 
+Image --> VirtualMachine
+```
 
+---
 
-## 12. Quick revision – interview questions
+# Network Security
 
-1\. Which cloud service model is generally suitable for lift-and-shift migration?
+By default:
 
-IaaS, because it provides control over the VM operating system and environment.
+✅ Inbound traffic is blocked
 
-2\. What factors should you consider before creating an Azure VM?
+Traffic must be explicitly allowed.
 
-Network, region, size, pricing, storage, operating system and security.
+---
 
-3\. What is the difference between OS disk and data disk?
+## Common Ports
 
-The OS disk contains the operating system. Data disks provide additional storage for application and other data.
+| Port | Protocol | Purpose |
+|--------|----------|-----------|
+| 22 | SSH | Linux Access |
+| 3389 | RDP | Windows Access |
+| 80 | HTTP | Web Traffic |
+| 443 | HTTPS | Secure Web Traffic |
 
-4\. Does stopping a VM always stop compute billing?
+---
 
-No. A VM in the Stopped (allocated) state can still incur compute charges. It must be deallocated to stop compute billing.
+# Backup vs Site Recovery
 
-5\. What are the two major VM cost components?
+## Backup
 
-Compute and storage.
+Purpose:
 
-6\. Which VM family would you select for a large in-memory cache?
+- Restore deleted/corrupted data
 
-A memory-optimized family.
+```mermaid
+flowchart LR
 
-7\. Which VM family is suitable for a workload requiring high disk I/O?
+VM --> BackupStorage
+BackupStorage --> RestoreVM
+```
 
-A storage-optimized family.
+---
 
-8\. What is the difference between Azure Backup and Site Recovery?
+## Site Recovery
 
-Backup protects data for restoration. Site Recovery replicates workloads to support disaster recovery.
+Purpose:
 
-9\. What is an Azure VM image?
+- Disaster Recovery
 
-A template containing an operating system and its initial configuration, used to create a VM.
+```mermaid
+flowchart LR
 
-10\. What is the purpose of an NSG?
+PrimaryRegion --> SecondaryRegion
+```
 
-It filters network traffic using security rules, controlling allowed and denied inbound and outbound communication.
+If a region fails:
 
-## 13. Final mental model
+Azure automatically recreates the VM in another region.
 
-Plan the VM
+---
 
-Region · Network · Size · Pricing · OS
+# Availability Options
 
-Create the VM
+Azure provides multiple availability strategies.
 
-Subscription · Resource Group · Image · Credentials
+---
 
-Configure supporting resources
+# Basic VM Deployment
 
-Disks · VNet · Subnet · NIC · NSG · Public IP
+```mermaid
+flowchart TD
 
-Operate and protect
+Region --> Datacenter
+Datacenter --> PhysicalServer
+PhysicalServer --> VirtualMachine
+```
 
-Monitoring · Backup · Disaster Recovery · Cost Management
+---
 
-The key takeaway: Creating an Azure VM is not just choosing CPU and RAM. You must plan its network, region, storage, security, pricing and recovery requirements.
+# Availability Zone
 
-## Reference links
+Protects against:
 
-- [Original class transcript – 3 November 2026](https://github.com/jeevanadv2000-pixel/python/blob/main/Azure%28Morning%29%20transcript_2026-11-03_09.31.46.txt?utm_source=chatgpt.com)
-- [Microsoft Learn – Azure VM sizes](https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/overview?utm_source=chatgpt.com)
-- [Microsoft Learn – VM states and billing](https://learn.microsoft.com/en-us/azure/virtual-machines/states-billing?utm_source=chatgpt.com)
-- [Microsoft Learn – Delete a VM and attached resources](https://learn.microsoft.com/en-us/azure/virtual-machines/delete?utm_source=chatgpt.com)
-- [Microsoft Learn – Azure Site Recovery](https://learn.microsoft.com/en-us/azure/site-recovery/site-recovery-overview?utm_source=chatgpt.com)
+✅ Datacenter Failure
 
-3 November session notes complete. The notes above are ready to copy into your Azure Markdown file.
+If an entire datacenter becomes unavailable:
+
+Azure shifts workload to another datacenter within the zone.
+
+---
+
+## Availability Zone Architecture
+
+```mermaid
+flowchart TD
+
+AZ1 --> DC1
+AZ1 --> DC2
+AZ1 --> DC3
+
+DC1 --> VM
+```
+
+---
+
+# Availability Set
+
+Used when running multiple VMs.
+
+Protects against:
+
+- Hardware Failure
+- Planned Maintenance
+
+Availability Set consists of:
+
+- Fault Domains
+- Update Domains
+
+---
+
+# Fault Domain (FD)
+
+Protects against:
+
+- Power Failure
+- Network Failure
+- Hardware Failure
+
+---
+
+## Fault Domain Example
+
+```mermaid
+flowchart LR
+
+FD1 --> VM1
+FD2 --> VM2
+FD3 --> VM3
+```
+
+If FD1 fails:
+
+VM2 and VM3 continue running.
+
+---
+
+## Fault Domain Facts
+
+| Item | Value |
+|---------|--------|
+| Purpose | Protect against physical failures |
+| Maximum Supported | 3 |
+
+---
+
+# Update Domain (UD)
+
+Protects against planned maintenance.
+
+Azure updates one update domain at a time.
+
+---
+
+## Update Domain Example
+
+```mermaid
+flowchart LR
+
+UD1 --> VM1
+UD2 --> VM2
+UD3 --> VM3
+UD4 --> VM4
+UD5 --> VM5
+```
+
+During maintenance:
+
+- UD1 updated
+- Others remain online
+
+---
+
+## Update Domain Facts
+
+| Item | Value |
+|---------|--------|
+| Default | 5 |
+| Maximum | 20 |
+| Purpose | Planned Maintenance Protection |
+
+---
+
+# Availability Zone vs Availability Set
+
+| Feature | Availability Zone | Availability Set |
+|-----------|------------------|------------------|
+| Protects Against Datacenter Failure | ✅ | ❌ |
+| Protects Against Hardware Failure | ✅ | ✅ |
+| Uses Fault Domains | ❌ | ✅ |
+| Uses Update Domains | ❌ | ✅ |
+| Multi Datacenter Protection | ✅ | ❌ |
+
+---
+
+# Virtual Machine Scale Sets (VMSS)
+
+Azure equivalent of AWS Auto Scaling Group.
+
+Allows automatic scaling.
+
+---
+
+## VMSS Architecture
+
+```mermaid
+flowchart TD
+
+VMSS --> VM1
+VMSS --> VM2
+VMSS --> VM3
+VMSS --> VM4
+```
+
+---
+
+# Scaling Modes
+
+| Mode | Description |
+|---------|------------|
+| Manual | Manually increase/decrease instances |
+| Autoscale | Automatic scaling based on metrics |
+
+---
+
+# Autoscaling Example
+
+```mermaid
+flowchart TD
+
+CPUUsage -->|Above 80%| ScaleOut
+CPUUsage -->|Below 20%| ScaleIn
+```
+
+---
+
+## Example Configuration
+
+- Initial Instances = 2
+- Minimum = 1
+- Maximum = 5
+
+Scale Out:
+
+- CPU > 80% for 10 minutes
+
+Scale In:
+
+- CPU < 20%
+
+---
+
+# Predictive Scaling
+
+Azure can forecast future scaling needs based on historical usage.
+
+```mermaid
+flowchart LR
+
+UsageHistory --> Forecast
+Forecast --> ScalingDecision
+```
+
+---
+
+# Spot Virtual Machines
+
+Spot VMs use Azure's unused capacity.
+
+---
+
+## Benefits
+
+✅ Extremely Low Cost
+
+✅ Significant Discounts
+
+---
+
+## Drawback
+
+❌ No guarantee of availability
+
+Azure can reclaim capacity anytime.
+
+---
+
+## Spot VM Concept
+
+```mermaid
+flowchart LR
+
+UnusedCapacity --> SpotVM
+SpotVM --> DiscountedPricing
+```
+
+---
+
+# VMSS + Load Balancer
+
+When multiple VMs exist:
+
+Users connect through a Load Balancer.
+
+```mermaid
+flowchart TD
+
+Users --> LoadBalancer
+
+LoadBalancer --> VM1
+LoadBalancer --> VM2
+LoadBalancer --> VM3
+```
+
+---
+
+# Run Command Feature
+
+Azure allows command execution without logging into VM.
+
+---
+
+## Linux Examples
+
+```bash
+uptime
+```
+
+```bash
+apt update
+```
+
+---
+
+## Windows Examples
+
+```powershell
+ipconfig
+```
+
+```powershell
+Get-Service
+```
+
+---
+
+# Key Interview Questions
+
+| Question | Answer |
+|-----------|---------|
+| What is IaaS? | Infrastructure as a Service |
+| Why use Virtual Machines? | Lift-and-shift, hosting applications, testing |
+| Difference between OS Disk and Data Disk? | OS Disk contains OS, Data Disk stores application data |
+| Components of VM Cost? | Compute Cost + Storage Cost |
+| What happens when VM is stopped? | Compute billing stops, storage billing continues |
+| What is a Fault Domain? | Protects against hardware and rack failures |
+| What is an Update Domain? | Protects against planned maintenance |
+| Maximum Fault Domains? | 3 |
+| Default Update Domains? | 5 |
+| Maximum Update Domains? | 20 |
+| What is VMSS? | Azure Virtual Machine Scale Set |
+| Azure equivalent of AWS ASG? | VMSS |
+| What are Spot VMs? | Discounted unused Azure capacity |
+| Difference between Backup and Site Recovery? | Backup restores data, Site Recovery provides DR |
+
+---
+
+# Quick Revision
+
+```mermaid
+mindmap
+  root((Azure Virtual Machines))
+    IaaS
+    Images
+    VM Sizes
+    Managed Disks
+      OS Disk
+      Data Disk
+    Pricing
+      Pay As You Go
+      Reserved
+      Spot VMs
+    Availability
+      Availability Zones
+      Availability Sets
+      Fault Domains
+      Update Domains
+    Scaling
+      VMSS
+      Autoscale
+    Security
+      NSG
+      RDP
+      SSH
+```
+
+---
+
+# Key Takeaway
+
+A Virtual Machine is an **IaaS service** where Azure manages the infrastructure while you manage the operating system and applications.
+
+To build production-grade VM deployments:
+
+**VM → Availability Zone/Set → Load Balancer → VM Scale Set → Backup/Site Recovery**
+
+This combination provides:
+
+- High Availability
+- Scalability
+- Disaster Recovery
+- Cost Optimization
+- Operational Reliability
