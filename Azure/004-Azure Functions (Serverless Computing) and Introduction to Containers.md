@@ -1,530 +1,707 @@
-# Azure Notes – 5 November 2026
+Azure Functions, Containers, ACI & ACR Notes
+Session Overview
 
-Main topics: Azure Functions (Serverless Computing) and Introduction to Containers\
-Instructor: Rochak Agrawal
+This session covered:
 
-These notes include Rochak's independent teaching and demonstration only. Participant questions and the discussions prompted by them have been excluded.
+Azure Functions (Serverless Computing)
+Event-Driven Architecture
+Triggers and Bindings
+Function App
+Scale-to-Zero Concept
+Containers vs Virtual Machines
+Docker Basics
+Docker Images & Containers
+Azure Container Instances (ACI)
+Azure Container Registry (ACR)
+DIY Containers vs Managed Containers
 
-## 1. Azure compute services – three approaches
+Source: Azure(Morning) transcript_2026-11-05_09.29.19.txt
 
-The instructor begins by comparing three ways to run applications in Azure.
+Compute Services in Azure
 
-| Compute service        | Model             | What you manage                                                                 |
-| ---------------------- | ----------------- | ------------------------------------------------------------------------------- |
-| Azure Virtual Machines | IaaS              | VM, OS, runtime and application                                                 |
-| Azure App Service      | PaaS              | Application and its configuration                                               |
-| Azure Functions        | Serverless / PaaS | Function code and its configuration; Azure manages the execution infrastructure |
+Azure provides three major ways to run applications:
 
-Three ways to run applications
+flowchart LR
 
-1\. Virtual Machine
+VM[Virtual Machine - IaaS]
+APP[Azure App Service - PaaS]
+FUNC[Azure Functions - Serverless]
 
-Manage the VM, OS, runtime and application.
-
-2\. App Service
-
-Deploy your application to a managed hosting platform.
-
-3\. Azure Functions
-
-Run code in response to events without managing servers.
-
-The key difference is how much infrastructure management is required and how the application executes.&#x20;
-
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
-
-GitHub+1
-
-
-
-## 2. What is Azure Functions?
-
-Azure Functions is a serverless computing service provided by Microsoft Azure.
-
-It allows developers to execute small units of code called functions in response to specific events or inputs.
-
-You write the code and configure when it should execute. Azure manages the underlying execution infrastructure.
-
-### What does serverless mean?
-
-Serverless does not mean there are no physical servers.
-
-It means:
-
-- You do not manage the underlying servers.
-- You do not need to provision a VM for each function.
-- Azure manages the infrastructure on which your functions execute.
-- Depending on the hosting plan, instances can scale automatically based on demand.
-
-AWS equivalent: AWS Lambda.
-
-| Microsoft Azure | Amazon Web Services |
-| --------------- | ------------------- |
-| Azure Functions | AWS Lambda          |
-
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
-
-GitHub+1
-
-## 3. Event-driven architecture
-
-Azure Functions is commonly used for event-driven applications.
-
-An event is something that happens in a system. When that event occurs, the function executes the required code.
-
-### Example 1: File uploaded to a Storage Account
-
-Suppose you upload a file to an Azure Storage Account and want to compress it automatically.
-
-1. A user uploads a file.
-2. The file upload generates an event.
-3. Azure Functions detects the event.
-4. The function executes the compression code.
-5. The compressed file can be stored in another location.
-
-File processing using Azure Functions
-
-File uploaded
-
-Azure Storage Account
-
-Trigger detects upload event
-
-Azure Function executes
-
-Compress the file
-
-Save compressed file
-
-Storage Account / other destination
-
-### Example 2: VM stopped
-
-Suppose a VM unexpectedly stops and you want to execute recovery logic.
-
-- Event: VM stopped.
-- Function: Executes the configured code.
-- Action: Initiates a restart, if the required permissions and conditions are satisfied.
-
-This is useful for automation because code executes in response to an event rather than continuously running on a server.&#x20;
-
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
-
-GitHub+1
-
-
-
-## 4. Triggers and Bindings
-
-Two important concepts in Azure Functions are Triggers and Bindings.
-
-### 4.1 Triggers
-
-A trigger defines the event that causes a function to execute.
-
-Examples:
-
-| Trigger               | When does the function execute?             |
-| --------------------- | ------------------------------------------- |
-| HTTP trigger          | When an HTTP request is received            |
-| Timer trigger         | At a configured time or schedule            |
-| Blob Storage trigger  | When a blob-related event occurs            |
-| Queue Storage trigger | When a message becomes available in a queue |
-| Event Hub trigger     | When events are received from Event Hubs    |
-
-For example, if you configure an HTTP trigger, the function can be invoked through an HTTP endpoint.
-
-### 4.2 Bindings
-
-Bindings connect a function to other Azure services or external resources.
-
-They allow a function to receive input from or send output to a service without writing all the connection-handling code yourself.
-
-Examples:
-
-- Read a file from Blob Storage.
-- Write a message to Queue Storage.
-- Read or write data in Cosmos DB.
-- Interact with Azure SQL.
-
-Important clarification: Bindings are not only outputs. They can be input bindings or output bindings. A trigger is a special kind of input that causes the function to execute.&#x20;
-
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
-
-GitHub+1
-
-
-
-### Trigger vs Binding
-
-| Trigger                           | Binding                                          |
-| --------------------------------- | ------------------------------------------------ |
-| Determines when the function runs | Connects the function to data or another service |
-| Initiates function execution      | Provides input or handles output                 |
-| Example: File uploaded            | Example: Read or save a file                     |
-
-Putting them together
-
-Trigger
-
-File uploaded to Blob Storage
-
-Azure Function
-
-Executes compression logic
-
-Output Binding
-
-Save compressed file to storage
-
-## 5. Azure Functions hosting plans
-
-During the portal demonstration, the instructor showed the available hosting options.
-
-The important concepts are:
-
-- Flex Consumption: Serverless, event-driven scaling with pay-as-you-go billing.
-- Premium: Provides pre-warmed instances and more predictable performance for workloads that need them.
-- App Service / Dedicated plan: Functions can run using an App Service Plan alongside web applications.
-
-The instructor selected Flex Consumption for the demonstration.
-
-Current Azure guidance: Flex Consumption is the recommended serverless hosting option for new Function Apps. The older Consumption plan is now considered legacy.&#x20;
-
-[image](https://www.google.com/s2/favicons?domain=https://learn.microsoft.com\&sz=32)
-
-Microsoft Learn+1
-
-### 5.1 What is scale to zero?
-
-Scale to zero means that when there are no incoming events or requests, the hosting plan can scale its on-demand function instances down to zero.
-
-For example:
-
-- You create a function that compresses files uploaded to Blob Storage.
-- No files are uploaded for a period.
-- There are no function executions during that period.
-- The on-demand instances can scale down to zero.
-
-When a new event arrives, Azure can provision an instance and execute the function.
-
-Scale-to-zero behaviour
-
-No events
-
-# 0
-
-On-demand instances
-
-Event received
-
-# 1+
-
-Instances execute function
-
-Conceptual illustration; actual instance counts depend on workload, concurrency and hosting-plan settings.
-
-Cost clarification: The instructor simplified this as no execution means no cost. For Flex Consumption, on-demand execution charges are based on execution count and resource consumption while functions execute. However, always-ready instances, storage accounts and other associated resources can still incur charges.&#x20;
-
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
-
-GitHub+2
-
-
-
-## 6. Creating an Azure Function App through the Portal
-
-The instructor demonstrated the Function App creation process.
-
-### 6.1 Function App vs Function
-
-These are two different things:
-
-| Term         | Meaning                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------ |
-| Function App | Azure resource that provides the hosting environment and configuration for one or more functions |
-| Function     | The individual code unit that executes when triggered                                            |
-
-Think of a Function App as a container that hosts multiple functions.
-
-### 6.2 Creation steps
-
-1. Search for Function App
-
-   Open Azure Portal and search for Function App. Select Create.
-2. Select hosting plan
-
-   Choose Flex Consumption for the demonstration.
-3. Configure Basics
-   - Subscription
-   - Resource Group
-   - Function App name
-   - Region
-   - Runtime stack
-   - Runtime version
-   - Instance memory size
-4. Configure zone redundancy
-
-   Review whether zone redundancy is supported and enabled for the selected plan and region.
-5. Configure Storage
-
-   Select or create the Storage Account associated with the Function App.
-6. Configure Networking
-
-   Review public access and virtual network connectivity options.
-7. Configure Monitoring and Deployment
-
-   Review monitoring, continuous deployment and authentication settings.
-8. Review + Create
-
-   Validate the configuration and deploy the Function App.
-
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
-
-GitHub+1
-
-### 6.3 Runtime stack and instance memory
-
-The instructor selected Python during the demonstration.
-
-Azure Functions supports multiple programming languages, including:
-
-- C#
-- Java
-- JavaScript / TypeScript
-- Python
-- PowerShell
-
-The available languages and versions depend on the hosting environment and runtime support.
-
-Instance memory: This determines the memory capacity available to each function execution instance. It is a hosting configuration, even though the service is serverless.&#x20;
-
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
-
-GitHub+1
-
-
-
-### 6.4 Storage Account
-
-A Storage Account is associated with a Function App.
-
-It supports runtime operations such as:
-
-- Managing triggers.
-- Storing runtime-related information.
-- Supporting scaling and execution infrastructure.
-- Logging and other hosting operations.
-
-It is not necessarily the business database for your application. You can separately connect a function to Azure SQL, Cosmos DB or other data services.
-
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
-
-GitHub+1
-
-### 6.5 Networking
-
-The instructor demonstrated public access and virtual network integration options.
-
-The important distinction is:
-
-- Public access: Controls whether the Function App can be reached through its public endpoint.
-- Virtual Network integration: Allows supported outbound connectivity from the Function App to resources in a virtual network.
-- Private Endpoint: Provides private inbound access to the Function App through a private IP in your virtual network.
-
-Important correction
-
-VNet integration does not simply give the Function App a private IP for inbound access. Use Private Endpoint when you need private inbound connectivity. The available networking features depend on the hosting plan.&#x20;
-
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
-
-GitHub+2
-
-
-
-## 7. Deploying function code
-
-Creating a Function App does not automatically create the actual function code.
-
-The instructor explained the sequence:
-
-1. Create the Function App.
-2. Open the Function App.
-3. Create a function using a supported template and trigger.
-4. Implement the required code.
-5. Configure bindings.
-6. Deploy the code.
-
-Deployment can be done through supported development tools or deployment methods. The portal also provides deployment options, including manual package/code deployment and repository-based workflows.
-
-Demonstration limitation: The instructor encountered a portal UI issue while trying to create the function. The Function App was created, but the function code and trigger were not successfully completed during the demonstration.&#x20;
-
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
-
-GitHub
-
-
-
-## 8. Introduction to Containers
-
-After the Azure Functions discussion, Rochak starts introducing the concept of containers.
-
-He begins by comparing containers with virtual machines.
-
-### 8.1 What is a physical machine?
-
-A laptop or desktop is a physical machine. It has actual hardware components such as:
-
-- CPU
-- RAM
-- Storage
-- Motherboard
-- Network interface
-
-For example, when you shut down your laptop, your Zoom connection stops because the physical machine is no longer operating.
-
-### 8.2 What is a Virtual Machine?
-
-A Virtual Machine is a software-based computer created using the resources of a physical server.
-
-A physical server uses virtualization software, commonly a hypervisor, to create multiple virtual machines.
-
-Each VM gets an allocated portion of the physical server's resources.
-
-Examples:
-
-- Azure Virtual Machines.
-- AWS EC2 instances.
-
-Physical server and virtual machines
-
-Physical Server
-
-CPU · RAM · Storage
-
-Hypervisor / Virtualization Software
-
-VM 1
-
-Guest OS
-
-Allocated resources
-
-VM 2
-
-Guest OS
-
-Allocated resources
-
-VM 3
-
-Guest OS
-
-Allocated resources
-
-VM 4
-
-Guest OS
-
-Allocated resources
-
-The number of VMs that can be created depends on the physical server's total capacity and the resources allocated to each VM.&#x20;
-
-[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
-
-GitHub
-
-
-
-### 8.3 What about containers?
-
-Rochak introduces containers as the next concept and starts setting up a comparison with VMs. However, the available transcript excerpt ends while he is still explaining the physical-server and virtualization foundation.
-
-Therefore, the detailed container architecture and comparison are not covered in these notes rather than being filled in with unrelated material.
-
-## 9. Quick revision – interview questions
-
-1\. What is Azure Functions?
-
-A serverless compute service that executes code in response to events or triggers.
-
-2\. What is the AWS equivalent of Azure Functions?
-
-AWS Lambda.
-
-3\. What does serverless mean?
-
-You do not manage the underlying servers. The code still executes on physical infrastructure managed by the cloud provider.
-
-4\. What is event-driven architecture?
-
-An application design where code executes in response to events, such as a file upload or an HTTP request.
-
-5\. What is a trigger?
-
-A trigger defines the event that invokes a function.
-
-6\. What is a binding?
-
-A binding connects a function to another service for input or output operations.
-
-7\. What is scale to zero?
-
-The ability of an eligible hosting plan to reduce on-demand instances to zero when there is no workload.
-
-8\. What is a Function App?
-
-An Azure resource that hosts and manages one or more individual functions.
-
-9\. Why does Azure Functions need a Storage Account?
-
-It uses associated storage for runtime operations, trigger management, scaling and related infrastructure requirements.
-
-10\. What is a hypervisor?
-
-Virtualization software that allows multiple virtual machines to run on a physical server.
-
-## 10. Final mental model
-
-Azure compute services
-
-Virtual Machine
-
-Manage server and OS
-
-App Service
-
-Managed application hosting
-
+Service	Infrastructure Visibility	Infrastructure ManagementVirtual Machine	Yes	Customer
+App Service	Yes	Azure
+Azure Functions	No	Azure
 Azure Functions
 
-Execute code when events occur
+Azure Functions is a:
 
-Azure Functions execution flow
+Serverless Compute Service
 
-Event / Trigger
 
-Function executes code
+It allows execution of code without managing servers.
 
-Binding / Output
+Key idea:
 
-Virtualization foundation
+Focus on code,
+not infrastructure.
 
-Physical Server
+What Does Serverless Mean?
+
+❌ No servers exist
+
+✅ Servers exist but are hidden from users
+
+flowchart LR
+
+Developer --> FunctionCode
+FunctionCode --> Azure
+Azure --> HiddenServers
+
+
+Users only provide code.
+
+Azure manages:
+
+Infrastructure
+Scaling
+Availability
+Runtime
+Event-Driven Architecture
+
+Azure Functions are designed primarily for:
+
+Event Driven Architecture
+
+
+Application execution starts only when an event occurs.
+
+flowchart LR
+
+Event --> Function --> Action
+
+Example 1: File Upload
+
+Scenario:
+
+Upload File
+↓
+Trigger Function
+↓
+Compress File
+
+flowchart LR
+
+StorageUpload --> AzureFunction
+AzureFunction --> CompressFile
+
+Example 2: VM Stopped
+
+Scenario:
+
+VM Stops
+↓
+Azure Function Triggered
+↓
+Restart VM
+
+flowchart LR
+
+VMStopped --> Function
+Function --> RestartVM
+
+Triggers
+
+Triggers define:
+
+WHEN a function runs
+
+
+Trigger = Input Event
+
+flowchart LR
+
+Trigger --> Function
+
+Common Trigger Types
+Trigger	ExampleHTTP	URL Request
+Timer	Daily 9 PM Run
+Storage Event	File Upload
+Queue Message	Message Arrives
+Bindings
+
+Bindings define:
+
+WHERE function sends output
+
+
+Binding = Output Destination
+
+flowchart LR
+
+Function --> Binding
+
+Trigger vs Binding
+flowchart LR
+
+Trigger --> Function --> Binding
+
+
+Example:
+
+File Uploaded
+↓
+Trigger
+↓
+Compress File
+↓
+Store in Database
+↓
+Binding
+
+Azure Functions Pricing Advantage
+Scale to Zero
+
+Most important interview point.
+
+Virtual Machine:
+
+VM running = Billing continues
+
+
+Even if:
+
+No users
+No requests
+
+Billing remains active.
+
+Function App:
+
+No Trigger
+↓
+No Execution
+↓
+No Cost
+
+Example
+
+Function:
+
+Trigger on File Upload
+
+
+If no file uploaded entire month:
+
+Execution Count = 0
+Cost = 0
+
+Function App Creation
+
+Supported Languages:
+
+RuntimePython
+Java
+Go
+PowerShell
+Custom Runtime
+Function App Architecture
+flowchart TD
+
+FunctionApp
+ --> Trigger
+
+Trigger
+ --> FunctionCode
+
+FunctionCode
+ --> Binding
+
+Azure Functions Networking
+
+Supports:
+
+Public Access
+Private Access
+VNet Integration
+flowchart LR
+
+FunctionApp --> VNet
+VNet --> Database
+VNet --> VM
+
+Virtual Machines vs Containers
+
+Next Topic Introduced:
+
+Containers
+
+
+Before understanding Azure Container Services, first understand:
+
+Virtual Machine vs Container
+
+Virtual Machine Architecture
+flowchart TD
+
+PhysicalServer
+ --> Hypervisor
 
 Hypervisor
+ --> VM1
+Hypervisor
+ --> VM2
+Hypervisor
+ --> VM3
 
-Multiple Virtual Machines
 
-Key takeaway: Azure Functions is useful when you want code to execute in response to events without managing servers. Containers are the next topic, introduced through the foundation of physical servers and virtualization.
+Each VM contains:
 
-## Reference links
+Full OS
+Runtime
+Applications
+Why Containers Were Introduced
+Problem 1: Heavy Virtual Machines
 
-- [Original class transcript – 5 November 2026](https://github.com/jeevanadv2000-pixel/python/blob/main/Azure%28Morning%29%20transcript_2026-11-05_09.29.19.txt?utm_source=chatgpt.com)
-- [Microsoft Learn – Azure Functions overview](https://learn.microsoft.com/en-us/azure/azure-functions/functions-overview?utm_source=chatgpt.com)
-- [Microsoft Learn – Triggers and bindings](https://learn.microsoft.com/en-us/azure/azure-functions/functions-triggers-bindings?utm_source=chatgpt.com)
-- [Microsoft Learn – Azure Functions hosting options](https://learn.microsoft.com/en-us/azure/azure-functions/functions-scale?utm_source=chatgpt.com)
-- [Microsoft Learn – Azure Functions best practices](https://learn.microsoft.com/en-us/azure/azure-functions/functions-best-practices?utm_source=chatgpt.com)
-- [Microsoft Learn – Virtual machines and hypervisors](https://learn.microsoft.com/en-us/azure/virtual-machines/overview?utm_source=chatgpt.com)
+To run a Python app:
 
-5 November session notes complete.
+Needed:
+
+Application
+Python
+
+
+But VM also contains:
+
+Chrome
+Zoom
+Extra Packages
+Unused Components
+
+
+VMs become large and resource-intensive.
+
+Problem 2: Environment Differences
+
+Different systems:
+
+OS	Package ManagerUbuntu	apt
+Linux	yum
+Windows	Different entirely
+
+Result:
+
+Works on my machine
+Fails on yours
+
+Containers
+
+Containers solve:
+
+✅ Dependency issues
+
+✅ Environment inconsistencies
+
+✅ Heavy deployments
+
+CD Example
+
+Trainer compared containers to CDs.
+
+Movie stored in CD
+
+
+Any player can run it:
+
+Sony
+Samsung
+Toshiba
+
+Movie remains identical.
+
+Similarly:
+
+Application + Dependencies
+=
+Container Image
+
+Container Terminology
+Image
+
+Packaged application.
+
+Contains:
+
+Application Code
+Runtime
+Libraries
+Dependencies
+flowchart TD
+
+Image
+ --> Code
+ --> Runtime
+ --> Libraries
+
+Container
+
+Running instance of an image.
+
+Image = Blueprint
+Container = Running Copy
+
+Virtualization vs Containerization
+Virtualization
+
+Hardware-Level
+
+flowchart LR
+
+Server --> VM1
+Server --> VM2
+Server --> VM3
+
+
+Each VM has separate OS.
+
+Containerization
+
+Operating-System-Level
+
+flowchart LR
+
+HostOS --> Container1
+HostOS --> Container2
+HostOS --> Container3
+
+
+Containers share Host OS.
+
+Container Components
+
+Container contains only:
+
+Application
+Runtime
+Dependencies
+
+
+No full operating system.
+
+This makes containers:
+
+✅ Lightweight
+
+✅ Fast
+
+✅ Portable
+
+Docker
+
+Most popular containerization platform.
+
+Used to:
+
+Create Images
+Run Containers
+Manage Containers
+DIY Container Approach
+
+Process:
+
+flowchart TD
+
+VM
+ --> DockerInstall
+ --> PullImage
+ --> RunContainer
+
+
+Steps:
+
+Create VM
+Install Docker
+Pull Image
+Run Container
+Limitations of DIY
+
+You manage:
+
+VM
+Docker
+Patching
+Monitoring
+Availability
+
+If VM fails:
+
+Container Fails
+
+Docker Commands
+List Images
+docker images
+
+List Running Containers
+docker ps
+
+Pull Image
+docker pull nginx
+
+Run Container
+docker run -d --name mynginx -p 80:80 nginx
+
+Port Mapping
+
+Example:
+
+-p 80:80
+
+
+Meaning:
+
+VM Port 80
+→
+Container Port 80
+
+flowchart LR
+
+Internet --> VM80
+VM80 --> Container80
+
+Azure Container Instances (ACI)
+
+ACI is Azure's managed container service.
+
+Instead of:
+
+Create VM
+Install Docker
+Manage Everything
+
+
+You simply provide:
+
+Container Image
+
+
+Azure runs it.
+
+ACI Architecture
+flowchart LR
+
+ContainerImage --> AzureContainerInstance
+AzureContainerInstance --> RunningContainer
+
+Benefits of ACI
+
+✅ No VM Management
+
+✅ No Docker Installation
+
+✅ Built-In Monitoring
+
+✅ Start/Stop Easily
+
+✅ Serverless Experience
+
+✅ Fast Deployment
+
+ACI Networking Modes
+Mode	DescriptionPublic	Public IP
+Private	VNet Access
+None	Fully Isolated
+When Use "None"?
+
+Batch Jobs
+
+Background Jobs
+
+Internal Processing
+
+No user access required.
+
+ACI Features
+
+Built-in:
+
+Metrics
+Logs
+Monitoring
+Start / Stop
+Restart
+Container Image Sources
+
+ACI supports:
+
+flowchart LR
+
+DockerHub --> ACI
+PrivateRegistry --> ACI
+ACR --> ACI
+
+Docker Hub
+
+Public Registry
+
+Website:
+
+hub.docker.com
+
+
+Contains images for:
+
+NGINX
+Ubuntu
+Python
+Java
+MySQL
+PostgreSQL
+
+and thousands more.
+
+Azure Container Registry (ACR)
+
+ACR is:
+
+Fully Managed Private Docker Registry
+
+
+Used to:
+
+Store Images
+Manage Images
+Secure Images
+Why ACR?
+
+Instead of storing images on public Docker Hub:
+
+Store internally and securely
+
+ACR Benefits
+
+✅ Private Registry
+
+✅ Geo Replication
+
+✅ Security Controls
+
+✅ Azure Integration
+
+✅ Vulnerability Scanning
+
+✅ Private Networking
+
+✅ Customer Managed Keys
+
+ACR Pricing Tiers
+Tier	PurposeBasic	Learning & Small Workloads
+Standard	Higher Throughput
+Premium	Geo Replication + Advanced Security
+Public vs Private Registry
+flowchart LR
+
+DockerHub --> Public
+
+ACR --> Private
+
+
+Docker Hub:
+
+Public Platform
+
+
+ACR:
+
+Enterprise Private Repository
+
+ACR Security
+
+Premium tier supports:
+
+Private Endpoints
+Geo Replication
+Customer Managed Keys
+Defender Integration
+
+ACR can integrate with:
+
+Microsoft Defender for Cloud
+
+
+Benefits:
+
+Vulnerability Scanning
+Security Recommendations
+Image Security Assessment
+End-to-End Container Workflow
+flowchart LR
+
+Developer
+ --> DockerImage
+
+DockerImage
+ --> ACR
+
+ACR
+ --> ACI
+
+ACI
+ --> RunningApplication
+
+Interview Questions
+Question	AnswerWhat is Azure Function?	Serverless compute service
+What is Event-Driven Architecture?	Code runs when event occurs
+What are Triggers?	Inputs that invoke functions
+What are Bindings?	Outputs from functions
+What is Scale-to-Zero?	No execution = no cost
+Function equivalent in AWS?	Lambda
+What is Container Image?	Packaged application with dependencies
+What is Container?	Running instance of image
+Difference between VM and Container?	VM has OS, Container shares host OS
+What is Docker?	Containerization tool
+What is ACI?	Managed Azure container runtime
+What is ACR?	Private container registry
+Docker Hub vs ACR?	Public vs Private Registry
+Why use ACR?	Security, integration, private storage
+Final Revision Mind Map
+mindmap
+  root((Azure Compute))
+    Virtual Machines
+      Full OS
+      Customer Managed
+
+    App Service
+      PaaS
+      Web Apps
+
+    Azure Functions
+      Serverless
+      Triggers
+      Bindings
+      Scale to Zero
+
+    Containers
+      Image
+      Container
+      Docker
+
+    ACI
+      Managed Containers
+      Monitoring
+      Public or Private
+
+    ACR
+      Private Registry
+      Geo Replication
+      Security
+      Defender Integration
+
+Key Exam Takeaways
+Azure Functions = AWS Lambda
+Trigger = Function Input Event
+Binding = Function Output
+Scale-to-Zero is a major serverless advantage
+Image ≠ Container (Container is running instance of image)
+Docker creates and runs containers
+ACI is managed container hosting
+ACR is Azure's private Docker registry
+Containers share host OS, VMs have separate OS
+ACR + ACI is a common Azure container deployment pattern

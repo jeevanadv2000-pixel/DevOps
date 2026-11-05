@@ -325,3 +325,241 @@ PROD --> PRDRG[Production Resource Group]
 ---
 
 ## Segregation Recommendations
+
+| Level | Strategy |
+|---------|----------|
+| Management Group | Department / Business Unit |
+| Subscription | Application / Environment |
+| Resource Group | Logical Workload |
+
+---
+
+# Azure Management Tools
+
+Azure can be managed using different interfaces.
+
+| Tool | Purpose |
+|---------|---------|
+| Azure Portal | GUI Management |
+| Azure CLI | Command-Line Management |
+| Azure PowerShell | PowerShell-Based Management |
+| Cloud Shell | Browser-Based CLI & PowerShell |
+| REST APIs | Programmatic Access |
+| SDKs | Application Development |
+| Mobile App | Basic Resource Operations |
+
+---
+
+# Azure CLI
+
+Preferred by users with Linux/Shell scripting experience.
+
+---
+
+## Command Structure
+
+```bash
+az <service> <action> <arguments>
+```
+
+---
+
+## Examples
+
+### List Resource Groups
+
+```bash
+az group list
+```
+
+### Create Resource Group
+
+```bash
+az group create \
+  --name demo-rg \
+  --location eastus
+```
+
+### Delete Resource Group
+
+```bash
+az group delete \
+  --name demo-rg
+```
+
+---
+
+# Azure PowerShell
+
+Preferred by users with Windows/PowerShell experience.
+
+---
+
+## Login
+
+```powershell
+Connect-AzAccount
+```
+
+---
+
+## Create Resource Group
+
+```powershell
+New-AzResourceGroup `
+-Name demo-rg `
+-Location EastUS
+```
+
+---
+
+## Delete Resource Group
+
+```powershell
+Remove-AzResourceGroup `
+-Name demo-rg
+```
+
+---
+
+# Azure CLI vs PowerShell
+
+| Azure CLI | Azure PowerShell |
+|------------|------------------|
+| Linux Friendly | Windows Friendly |
+| Shell Based | PowerShell Based |
+| Starts with `az` | Uses Az Cmdlets |
+| Cross Platform | PowerShell Ecosystem |
+
+---
+
+## Recommendation
+
+- Linux Background → Azure CLI
+- Windows Background → Azure PowerShell
+
+Both provide identical capabilities.
+
+---
+
+# Cloud Shell
+
+Cloud Shell is a browser-based terminal available directly within Azure Portal.
+
+---
+
+## Features
+
+- No local installation required
+- Azure CLI support
+- PowerShell support
+- Built-in authentication
+- File upload/download
+- VS Code-style editor
+
+---
+
+## Cloud Shell Architecture
+
+```mermaid
+flowchart LR
+
+AzurePortal --> CloudShell
+CloudShell --> CLI
+CloudShell --> PowerShell
+```
+
+---
+
+# Region Selection Decision Flow
+
+```mermaid
+flowchart TD
+
+Start[Choose Region]
+
+Start --> Users[User Location]
+Users --> Compliance[Compliance Rules]
+Compliance --> Cost[Cost Comparison]
+Cost --> Services[Service Availability]
+Services --> Region[Final Region Selection]
+```
+
+---
+
+# Key Interview Questions
+
+| Question | Answer |
+|-----------|---------|
+| What is an Azure Region? | Geographic location containing one or more datacenters |
+| What is an Availability Zone? | Isolated datacenter location within a region |
+| Why use Availability Zones? | Protection against datacenter failures |
+| What is a Resource Group? | Logical container for Azure resources |
+| Can a resource belong to multiple Resource Groups? | No |
+| Why do we need Subscriptions? | Billing and Access Control |
+| What is ARM? | Azure Resource Manager, the Azure control plane |
+| What is a Management Group? | Container for managing multiple subscriptions |
+| Difference between Azure CLI and PowerShell? | CLI is shell-based, PowerShell uses cmdlets |
+| Can resources inside a Resource Group belong to different regions? | Yes |
+
+---
+
+# Quick Revision
+
+| Azure Component | Purpose |
+|---------------|----------|
+| Region | Geographic deployment location |
+| Availability Zone | High availability within a region |
+| Resource | Azure service instance |
+| Resource Group | Logical grouping of resources |
+| ARM | Resource management layer |
+| Subscription | Billing and access boundary |
+| Management Group | Governance across subscriptions |
+
+---
+
+# Summary
+
+```mermaid
+mindmap
+  root((Azure Fundamentals))
+    Regions
+      Datacenters
+      Availability Zones
+      Compliance
+    Resources
+      Virtual Machines
+      Storage
+      Databases
+    Resource Groups
+      Organization
+      Policies
+      Permissions
+    ARM
+      Authentication
+      Authorization
+      Management
+    Subscriptions
+      Billing
+      Access Control
+    Management Groups
+      Governance
+      Multiple Subscriptions
+    Tools
+      Azure Portal
+      CLI
+      PowerShell
+      Cloud Shell
+      SDKs
+```
+
+## Key Takeaway
+
+Azure follows a layered hierarchy:
+
+**Management Group → Subscription → Resource Group → Resources**
+
+Everything in Azure is created as a **Resource**, managed through **ARM**, organized into **Resource Groups**, billed through **Subscriptions**, and governed through **Management Groups**.
+
+
+This version is fully GitHub-compatible with proper Mermaid blocks, markdown tables, and formatting.
